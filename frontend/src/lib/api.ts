@@ -37,6 +37,10 @@ export const auth = {
   me: () => request<any>("/auth/me"),
   updateMe: (data: any) =>
     request<any>("/auth/me", { method: "PATCH", body: JSON.stringify(data) }),
+  updateSettings: (data: any) =>
+    request<any>("/auth/settings", { method: "PATCH", body: JSON.stringify(data) }),
+  changePassword: (data: { currentPassword: string; newPassword: string }) =>
+    request<any>("/auth/change-password", { method: "POST", body: JSON.stringify(data) }),
   completeOnboarding: (data: any) =>
     request<any>("/auth/onboarding", { method: "POST", body: JSON.stringify(data) }),
 };

@@ -103,14 +103,69 @@ export async function authRoutes(app: FastifyInstance) {
     const body = z.object({
       name: z.string().optional(),
       timezone: z.string().optional(),
+      city: z.string().optional(),
+      ageRange: z.string().optional(),
+      role: z.string().optional(),
+      school: z.string().optional(),
+      major: z.string().optional(),
+      jobTitle: z.string().optional(),
+      workMode: z.string().optional(),
+      dailyRoutine: z.string().optional(),
+      focusAreas: z.array(z.string()).optional(),
+      wakeTime: z.string().optional(),
+      sleepTime: z.string().optional(),
+      peakHours: z.string().optional(),
+      agentContactPref: z.string().optional(),
+      agentTone: z.string().optional(),
     }).parse(req.body);
 
     const user = await prisma.user.update({
       where: { id: req.user.id },
       data: body,
-      select: { id: true, email: true, name: true, timezone: true },
+      select: {
+        id: true, email: true, name: true, timezone: true, city: true,
+        ageRange: true, role: true, school: true, major: true, jobTitle: true,
+        workMode: true, dailyRoutine: true, focusAreas: true,
+        wakeTime: true, sleepTime: true, peakHours: true,
+        agentContactPref: true, agentTone: true,
+      },
     });
     return user;
+  });
+
+  // Update agent settings (checkinTime, model etc.)
+  app.patch("/auth/settings", { preHandler: authenticate }, async (req, reply) => {
+    const body = z.object({
+      checkinTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+      morningFollowupTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+      llmModel: z.string().optional(),
+      notificationsEnabled: z.boolean().optional(),
+    }).parse(req.body);
+
+    const settings = await prisma.userSettings.upsert({
+      where: { userId: req.user.id },
+      create: { userId: req.user.id, ...body },
+      update: body,
+    });
+    return settings;
+  });
+
+  // Change password
+  app.post("/auth/change-password", { preHandler: authenticate }, async (req, reply) => {
+    const body = z.object({
+      currentPassword: z.string(),
+      newPassword: z.string().min(8),
+    }).parse(req.body);
+
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!user) return reply.status(404).send({ error: "User not found" });
+
+    const valid = await bcrypt.compare(body.currentPassword, user.passwordHash);
+    if (!valid) return reply.status(400).send({ error: "Mevcut şifre yanlış" });
+
+    const newHash = await bcrypt.hash(body.newPassword, 12);
+    await prisma.user.update({ where: { id: req.user.id }, data: { passwordHash: newHash } });
+    return { success: true };
   });
 
   // ── Onboarding ────────────────────────────────────────────

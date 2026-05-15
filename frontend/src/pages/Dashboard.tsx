@@ -110,27 +110,39 @@ function TimelineRibbon({ logs }: { logs: any[] }) {
   );
 }
 
-// ── Momentum lanes ──────────────────────────────────────────
-function MomentumLanes({ checkinCount, taskDone, taskTotal }: { checkinCount: number; taskDone: number; taskTotal: number }) {
+// ── Momentum lanes — only real data ─────────────────────────
+function MomentumLanes({ checkinCount, taskDone, taskTotal, screenMin }: {
+  checkinCount: number; taskDone: number; taskTotal: number; screenMin: number;
+}) {
   const lanes = [
-    { label: "Log streak",       value: Math.min(100, checkinCount * 14),  hint: `${checkinCount} days this week`,    color: "#A3E635" },
-    { label: "Görev tamamlama",  value: taskTotal > 0 ? Math.round((taskDone / taskTotal) * 100) : 0, hint: `${taskDone} / ${taskTotal}`, color: "#F59E0B" },
-    { label: "Plan uyumu",       value: 78, hint: "bu hafta",              color: "#5B8CFF" },
-    { label: "Sosyal medya",     value: 58, hint: "hedef ≤ %45",           color: "#22D3EE", invert: true },
+    { label: "Log streak", value: Math.min(100, Math.round((checkinCount / 7) * 100)), hint: `${checkinCount} / 7 gün`, color: "#A3E635", hasData: true },
+    { label: "Görev tamamlama", value: taskTotal > 0 ? Math.round((taskDone / taskTotal) * 100) : null, hint: `${taskDone} / ${taskTotal}`, color: "#F59E0B", hasData: taskTotal > 0 },
+    { label: "Ekran süresi", value: screenMin > 0 ? Math.min(100, Math.round((screenMin / (8 * 60)) * 100)) : null, hint: screenMin > 0 ? `${Math.round(screenMin / 60 * 10) / 10}s / günde 8s hedef` : "veri yok", color: "#22D3EE", hasData: screenMin > 0 },
   ];
+
+  const activeLanes = lanes.filter(l => l.hasData);
+
+  if (activeLanes.length === 0) {
+    return (
+      <div style={{ padding: "24px 0", textAlign: "center" }}>
+        <p className="muted fs-12" style={{ fontStyle: "italic" }}>Yeterli veri yok — check-in yap ve görev ekle.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="col gap-12">
-      {lanes.map((l, i) => (
+      {activeLanes.map((l, i) => (
         <div key={i}>
           <div className="between" style={{ marginBottom: 6 }}>
             <div className="row gap-8">
               <span className="fs-12" style={{ fontWeight: 500 }}>{l.label}</span>
               <span className="mono dim fs-11">{l.hint}</span>
             </div>
-            <span className="num fs-12">{l.value}%</span>
+            <span className="num fs-12">{l.value ?? 0}%</span>
           </div>
           <div className="liquid">
-            <div className="liquid-fill" style={{ width: `${l.value}%`, background: `linear-gradient(90deg, ${l.color}cc, ${l.color})` }} />
+            <div className="liquid-fill" style={{ width: `${l.value ?? 0}%`, background: `linear-gradient(90deg, ${l.color}cc, ${l.color})` }} />
           </div>
         </div>
       ))}
@@ -283,7 +295,7 @@ export default function Dashboard() {
             <div className="card-title"><span className="card-title-dot" style={{ background: "var(--lime)", boxShadow: "0 0 8px var(--lime)" }} />Momentum</div>
             <span className="card-sub">GEÇEN HAFTAYA KARŞI</span>
           </div>
-          <MomentumLanes checkinCount={checkinCount} taskDone={doneTasks.length} taskTotal={(taskList as any[]).length} />
+          <MomentumLanes checkinCount={checkinCount} taskDone={doneTasks.length} taskTotal={(taskList as any[]).length} screenMin={daily?.summary?.totalScreenMin ?? 0} />
         </div>
       </div>
 
