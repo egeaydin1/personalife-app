@@ -1,6 +1,8 @@
 import { startOcrWorker } from "./workers/ocr.worker.js";
 import { startTriggerWorker } from "./workers/trigger.worker.js";
 import { startMemoryWorker } from "./workers/memory.worker.js";
+import { startTelegramWorker } from "./workers/telegram.worker.js";
+import { startGoogleWorker } from "./workers/google.worker.js";
 import { prisma } from "./lib/prisma.js";
 import { scheduleDailyCheckin, scheduleMissingLogCheck, scheduleDeadlineReminders } from "./services/agent/triggers.js";
 
@@ -10,11 +12,10 @@ async function bootstrap() {
   startOcrWorker();
   startTriggerWorker();
   startMemoryWorker();
+  startTelegramWorker();
+  startGoogleWorker();
 
-  // Schedule daily triggers for all users on startup
-  const users = await prisma.user.findMany({
-    include: { settings: true },
-  });
+  const users = await prisma.user.findMany({ include: { settings: true } });
 
   for (const user of users) {
     const checkinTime = user.settings?.checkinTime ?? "21:00";
@@ -26,7 +27,7 @@ async function bootstrap() {
   console.log(`[worker] bootstrapped triggers for ${users.length} users`);
 }
 
-bootstrap().catch((err) => {
+bootstrap().catch(err => {
   console.error("[worker] fatal:", err);
   process.exit(1);
 });

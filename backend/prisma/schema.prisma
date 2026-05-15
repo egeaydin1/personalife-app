@@ -202,6 +202,7 @@ model CalendarEvent {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
+  @@unique([userId, externalId], name: "unique_user_external_event")
   @@index([userId, startAt])
   @@map("calendar_events")
 }
