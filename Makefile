@@ -45,11 +45,8 @@ seed:
 reset-db:
 	docker compose exec backend npx prisma migrate reset --force
 
-setup: ## First-time setup: copy env, build, start, migrate
+setup: ## First-time setup: copy env, build, start (Dockerfile auto-applies schema + generate)
 	cp -n .env.example .env || true
 	docker compose build
 	docker compose up -d
-	sleep 5
-	docker compose exec backend npx prisma migrate dev --name init
-	docker compose exec backend npx prisma generate
 	@echo "\n✓ Setup complete. Frontend: http://localhost:5173 | API: http://localhost:4000"

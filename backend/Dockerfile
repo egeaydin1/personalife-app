@@ -9,7 +9,8 @@ RUN npm install
 COPY . .
 RUN npx prisma generate
 EXPOSE 4000
-CMD ["npm", "run", "dev"]
+# db push + generate on every start so schema changes are always applied
+CMD ["sh", "-c", "npx prisma db push --accept-data-loss && npx prisma generate && npm run dev"]
 
 # ── builder ──────────────────────────────────────────────────────────────────
 FROM base AS builder
