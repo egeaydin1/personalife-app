@@ -7,6 +7,7 @@ export default function Login() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -15,9 +16,11 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
-      const res = await auth.login({ email, password });
-      setToken(res.token);
-      navigate("/");
+      const res = await auth.login({ email, password, rememberMe });
+      setToken(res.token, rememberMe);
+      // If onboarding not completed, route there
+      if (!res.user.onboardingCompletedAt) navigate("/onboarding");
+      else navigate("/");
     } catch (err: any) {
       setError(err.message ?? "Giriş başarısız");
     } finally {
@@ -30,11 +33,13 @@ export default function Login() {
       <div className="app-bg" />
       <div className="auth-card">
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 32 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 12, background: "radial-gradient(circle at 30% 30%, #c8d7ff, #5B8CFF 50%, #8B5CF6 100%)", boxShadow: "0 0 20px rgba(91,140,255,0.5)", flexShrink: 0 }} />
-          <div>
-            <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 20, letterSpacing: "-0.01em" }}>Personalife</div>
-            <div style={{ fontFamily: "var(--font-mono)", fontSize: 9.5, color: "var(--text-3)", letterSpacing: "0.18em" }}>LIFE · OS · v1.0</div>
-          </div>
+          <Link to="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: "radial-gradient(circle at 30% 30%, #c8d7ff, #5B8CFF 50%, #8B5CF6 100%)", boxShadow: "0 0 20px rgba(91,140,255,0.5)", flexShrink: 0 }} />
+            <div>
+              <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 20, letterSpacing: "-0.01em", color: "var(--text-0)" }}>Personalife</div>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: 9.5, color: "var(--text-3)", letterSpacing: "0.18em" }}>LIFE · OS · v1.0</div>
+            </div>
+          </Link>
         </div>
 
         <h2 style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 22, letterSpacing: "-0.02em", marginBottom: 6 }}>Giriş yap</h2>
@@ -54,6 +59,18 @@ export default function Login() {
             <label className="auth-label">Şifre</label>
             <input className="auth-input" type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="••••••••" />
           </div>
+
+          <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 13, color: "var(--text-1)" }}>
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={e => setRememberMe(e.target.checked)}
+              style={{ width: 16, height: 16, accentColor: "var(--primary)" }}
+            />
+            <span>Beni 30 gün hatırla</span>
+            <span className="mono dim fs-11" style={{ marginLeft: "auto" }}>{rememberMe ? "Aktif" : "Pasif"}</span>
+          </label>
+
           <button type="submit" className="btn primary" style={{ width: "100%", justifyContent: "center", height: 44, fontSize: 14 }} disabled={loading}>
             {loading ? "Giriş yapılıyor..." : "Giriş Yap"}
           </button>

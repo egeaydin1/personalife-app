@@ -14,6 +14,7 @@ import { friendRoutes } from "./routes/friends.js";
 import { screenTimeRoutes } from "./routes/screentime.js";
 import { agentRoutes } from "./routes/agent.js";
 import { reportRoutes } from "./routes/reports.js";
+import { integrationRoutes } from "./routes/integrations.js";
 
 export async function buildApp() {
   const app = Fastify({
@@ -53,6 +54,7 @@ export async function buildApp() {
   await app.register(screenTimeRoutes, { prefix: "/api/v1" });
   await app.register(agentRoutes, { prefix: "/api/v1" });
   await app.register(reportRoutes, { prefix: "/api/v1" });
+  await app.register(integrationRoutes, { prefix: "/api/v1" });
 
   return app;
 }

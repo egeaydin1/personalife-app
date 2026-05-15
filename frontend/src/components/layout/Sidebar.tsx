@@ -14,6 +14,7 @@ const NAV = [
   { to: "/friends",    id: "friends",   icon: "users",    label: "Friends",     section: "explore" },
   { to: "/memory",     id: "memory",    icon: "memory",   label: "Memory",      section: "explore", dot: true },
   { to: "/screen-time",id: "screen",    icon: "phone",    label: "Screen Time", section: "explore" },
+  { to: "/settings",   id: "settings",  icon: "settings", label: "Ayarlar",     section: "explore" },
 ];
 
 export default function Sidebar() {

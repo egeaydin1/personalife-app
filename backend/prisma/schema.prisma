@@ -21,6 +21,24 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  // Onboarding profile
+  ageRange              String?   // "16-22" | "23-29" | "30-39" | "40+"
+  role                  String?   // "student" | "employee" | "freelance" | "transition" | "other"
+  city                  String?
+  school                String?   // if student
+  major                 String?
+  jobTitle              String?
+  workMode              String?   // "office" | "remote" | "hybrid"
+  dailyRoutine          String?   // free-text — important for agent context
+  focusAreas            String[]  // ["academic", "productivity", "social", "health", "digital", "emotional", "projects"]
+  wakeTime              String?   // "HH:mm"
+  sleepTime             String?   // "HH:mm"
+  peakHours             String?   // "morning" | "afternoon" | "evening" | "late_night"
+  agentContactPref      String?   // "silent" | "balanced" | "active"
+  agentTone             String?   // "casual" | "neutral" | "professional"
+  onboardingCompletedAt DateTime?
+  icalToken             String?   @unique // secure read-only export token
+
   settings          UserSettings?
   tasks             Task[]
   courses           Course[]
@@ -33,8 +51,36 @@ model User {
   agentTriggers     AgentTrigger[]
   memorySnapshot    MemorySnapshot?
   goals             Goal[]
+  integrations      Integration[]
 
   @@map("users")
+}
+
+// External service integrations (Telegram, Google Calendar, etc.)
+model Integration {
+  id           String          @id @default(cuid())
+  userId       String
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type         IntegrationType
+  status       String          @default("ACTIVE") // ACTIVE | DISABLED | ERROR | PENDING
+  externalId   String?         // telegram chat_id, google account email, etc.
+  accessToken  String?         // encrypted at rest in production
+  refreshToken String?
+  expiresAt    DateTime?
+  config       Json?           // type-specific (sync preferences, etc.)
+  lastSyncAt   DateTime?
+  errorMessage String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@unique([userId, type])
+  @@map("integrations")
+}
+
+enum IntegrationType {
+  TELEGRAM
+  GOOGLE_CALENDAR
+  ICAL_EXPORT
 }
 
 model UserSettings {

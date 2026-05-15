@@ -1,8 +1,6 @@
-const BASE = "/api/v1";
+import { getToken } from "./auth";
 
-function getToken(): string | null {
-  return localStorage.getItem("token");
-}
+const BASE = "/api/v1";
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = getToken();
@@ -26,12 +24,12 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 // ── Auth ──────────────────────────────────────────────────────
 export const auth = {
-  register: (data: { email: string; password: string; name?: string }) =>
+  register: (data: { email: string; password: string; name?: string; rememberMe?: boolean }) =>
     request<{ token: string; user: any }>("/auth/register", {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  login: (data: { email: string; password: string }) =>
+  login: (data: { email: string; password: string; rememberMe?: boolean }) =>
     request<{ token: string; user: any }>("/auth/login", {
       method: "POST",
       body: JSON.stringify(data),
@@ -39,6 +37,17 @@ export const auth = {
   me: () => request<any>("/auth/me"),
   updateMe: (data: any) =>
     request<any>("/auth/me", { method: "PATCH", body: JSON.stringify(data) }),
+  completeOnboarding: (data: any) =>
+    request<any>("/auth/onboarding", { method: "POST", body: JSON.stringify(data) }),
+};
+
+// ── Integrations ──────────────────────────────────────────────
+export const integrations = {
+  list: () => request<{ integrations: any[]; icalToken: string }>("/integrations"),
+  regenerateIcal: () => request<{ icalToken: string }>("/integrations/ical/regenerate", { method: "POST" }),
+  startTelegram: () => request<any>("/integrations/telegram/start", { method: "POST" }),
+  startGoogle: () => request<any>("/integrations/google/start", { method: "POST" }),
+  remove: (id: string) => request<void>(`/integrations/${id}`, { method: "DELETE" }),
 };
 
 // ── Tasks ─────────────────────────────────────────────────────
