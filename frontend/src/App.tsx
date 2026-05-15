@@ -16,6 +16,7 @@ import ScreenTime from "@/pages/ScreenTime";
 import Analytics from "@/pages/Analytics";
 import Memory from "@/pages/Memory";
 import Settings from "@/pages/Settings";
+import ActivityLogs from "@/pages/ActivityLogs";
 
 function PrivateRoute({ children, requireOnboarding = true }: { children: React.ReactNode; requireOnboarding?: boolean }) {
   if (!isAuthenticated()) return <Navigate to="/login" replace />;
@@ -76,6 +77,7 @@ export default function App() {
           <Route path="analytics" element={<Analytics />} />
           <Route path="memory" element={<Memory />} />
           <Route path="settings" element={<Settings />} />
+          <Route path="logs" element={<ActivityLogs />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

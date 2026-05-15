@@ -224,6 +224,16 @@ export default function Dashboard() {
   const logs = daily?.activityLogs ?? [];
   const score = Math.min(99, 40 + checkinCount * 8 + Math.min(doneTasks.length * 4, 30));
 
+  // Detect missing log days (last 7 days without checkin)
+  const checkinDates = new Set((checkinList as any[]).map((c: any) => c.date?.slice(0, 10)));
+  const missingDays: string[] = [];
+  for (let i = 1; i <= 7; i++) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    if (!checkinDates.has(key)) missingDays.push(format(d, "d MMM"));
+  }
+  const hasNoLogToday = !daily || (daily.activityLogs?.length === 0 && daily.summary?.totalScreenMin === 0);
+
   return (
     <div className="col gap-20">
       <div className="topbar">
@@ -241,6 +251,20 @@ export default function Dashboard() {
           <div className="avatar">{firstName[0]?.toUpperCase()}</div>
         </div>
       </div>
+
+      {/* Missing log days banner */}
+      {missingDays.length > 0 && (
+        <div style={{ padding: "12px 16px", borderRadius: 12, background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)", display: "flex", alignItems: "center", gap: 12 }}>
+          <Icon name="alert-circle" size={16} />
+          <div style={{ flex: 1 }}>
+            <span className="fs-13" style={{ fontWeight: 500, color: "var(--amber)" }}>Eksik log günleri: </span>
+            <span className="muted fs-12">{missingDays.slice(0, 5).join(", ")}{missingDays.length > 5 ? ` ve ${missingDays.length - 5} gün daha` : ""}</span>
+          </div>
+          <button className="btn ghost sm" onClick={() => window.location.href = "/checkin"}>
+            <Icon name="edit" size={12} />Logla
+          </button>
+        </div>
+      )}
 
       <div className="grid" style={{ gridTemplateColumns: "1.6fr 1fr" }}>
         <div className="card glow" style={{ padding: 0, overflow: "hidden", position: "relative" }}>

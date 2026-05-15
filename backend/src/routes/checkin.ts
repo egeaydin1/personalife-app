@@ -79,16 +79,19 @@ export async function checkinRoutes(app: FastifyInstance) {
       take: 20,
     });
 
-    const agentHistory = history.map((m) => ({
-      role: m.role.toLowerCase() as "user" | "assistant",
-      content: m.content,
-    }));
+    // Only include USER + ASSISTANT messages — TOOL/SYSTEM messages break OpenAI message sequencing
+    const agentHistory = history
+      .filter(m => m.role === "USER" || m.role === "ASSISTANT")
+      .map(m => ({
+        role: m.role.toLowerCase() as "user" | "assistant",
+        content: m.content,
+      }));
 
     const response = await runAgent({
       userId: req.user.id,
       checkinId: checkin.id,
       userMessage: body.message,
-      history: agentHistory.slice(0, -1), // exclude the message we just saved
+      history: agentHistory.slice(0, -1), // exclude the user message we just saved
     });
 
     // Queue a memory snapshot refresh

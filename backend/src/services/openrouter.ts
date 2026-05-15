@@ -1,7 +1,8 @@
 export type Message = {
   role: "system" | "user" | "assistant" | "tool";
-  content: string;
+  content: string | null;
   tool_call_id?: string;
+  tool_calls?: ToolCall[];  // required when role=assistant and tool calls were made
 };
 
 export type Tool = {

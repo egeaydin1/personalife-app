@@ -57,6 +57,7 @@ export async function buildApp() {
   await app.register(reportRoutes, { prefix: "/api/v1" });
   await app.register(integrationRoutes, { prefix: "/api/v1" });
   await app.register(categoryRoutes, { prefix: "/api/v1" });
+  await app.register((await import("./routes/activitylogs.js")).activityLogRoutes, { prefix: "/api/v1" });
 
   return app;
 }

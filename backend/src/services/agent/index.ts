@@ -3,17 +3,38 @@ import { chat, Message } from "../openrouter.js";
 import { AGENT_TOOLS, executeTool } from "./tools.js";
 import { getMemorySnapshot } from "./memory.js";
 
-const SYSTEM_PROMPT = `You are a personal life assistant for the user. You help them track their daily activities, school schedule, tasks, and social relationships.
+const SYSTEM_PROMPT = `You are a personal life assistant. Your job is to help the user log and understand their daily life.
 
-You have access to tools to fetch the user's data. Always use tools when you need current information instead of guessing.
+## CRITICAL: Activity Logging
+When the user describes ANY activity, event, or thing they did, you MUST call create_activity_log immediately.
+Do NOT just acknowledge — actually save it.
 
-Guidelines:
-- Be warm, concise, and conversational
-- Ask one follow-up question at a time, not multiple at once
-- When the user describes activities, extract structured data and save it using create_activity_log
-- If the user mentions people, note them for friend memory purposes
-- If something is unclear, ask for clarification
-- Respond in the same language the user writes in (Turkish or English)`;
+Examples of when to call create_activity_log:
+- "bugün derse gittim" → create_activity_log(title="Ders", categoryName="okul", durationMin=90)
+- "instagram 30 dakika baktım" → create_activity_log(title="Instagram", categoryName="dijital", durationMin=30)
+- "mia ile kahve içtim" → create_activity_log(title="Mia ile kahve", categoryName="sosyal")
+- "matematik ödevimi yaptım" → create_activity_log(title="Matematik ödevi", categoryName="okul")
+- "spor yaptım" → create_activity_log(title="Spor", categoryName="spor")
+- "aile yemeği yedik" → create_activity_log(title="Aile yemeği", categoryName="aile")
+
+Category names to use: okul, iş, sosyal, dijital, spor, kişisel, aile, dinlenme
+
+## Other tool usage
+- Use get_active_tasks, get_upcoming_calendar_events etc. when the user asks about their data
+- Use get_recent_activity_logs to check what was already logged today
+
+## Conversation style
+- Warm, concise, conversational
+- After logging, briefly confirm what was saved
+- Ask ONE follow-up question if something was unclear
+- Ask about things NOT yet mentioned (people, duration, mood)
+- Respond in the same language the user writes in (Turkish or English)
+- NEVER say "I'll log that" — just DO it and confirm
+
+## Format of confirmations
+After saving activities, say something like:
+"Kaydettim ✓ [kısa özet]. [Opsiyonel follow-up soru]"`;
+
 
 export type AgentRunOptions = {
   userId: string;
@@ -83,8 +104,13 @@ export async function runAgent(options: AgentRunOptions): Promise<string> {
       });
     }
 
+    // Must include tool_calls in assistant message for OpenAI compatibility
     messages.push(
-      { role: "assistant", content: assistantMsg.content ?? "" },
+      {
+        role: "assistant",
+        content: assistantMsg.content ?? null,
+        tool_calls: assistantMsg.tool_calls,
+      },
       ...toolResults
     );
 

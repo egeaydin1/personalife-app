@@ -185,43 +185,148 @@ function TaskRow({ task, onToggle, onDelete }: { task: any; onToggle: () => void
   );
 }
 
+// ── Category-specific form config ────────────────────────────
+function getCategoryConfig(catName: string | null) {
+  const n = (catName ?? "").toLowerCase();
+  if (n === "spor" || n === "sağlık") return {
+    titlePlaceholder: "Antrenman / aktivite (ör: Sabah koşusu)",
+    showPriority: false,
+    showDeadline: false,
+    showCourse: false,
+    showDuration: true,
+    durationLabel: "Hedef süre (dk)",
+    showNotes: true,
+    notesPlaceholder: "Antrenman türü, hedef mesafe, set/tekrar sayısı…",
+    extraFields: [
+      { key: "description", label: "Antrenman türü", placeholder: "Kardio / Ağırlık / Yüzme / Futbol…" },
+    ],
+  };
+  if (n === "okul") return {
+    titlePlaceholder: "Ödev / çalışma / sınav hazırlığı",
+    showPriority: true,
+    showDeadline: true,
+    showCourse: true,
+    showDuration: true,
+    durationLabel: "Tahmini süre (dk)",
+    showNotes: false,
+    notesPlaceholder: "",
+    extraFields: [],
+  };
+  if (n === "iş" || n === "proje") return {
+    titlePlaceholder: "Görev / deliverable",
+    showPriority: true,
+    showDeadline: true,
+    showCourse: false,
+    showDuration: true,
+    durationLabel: "Tahmini süre (dk)",
+    showNotes: true,
+    notesPlaceholder: "Proje bağlamı, notlar…",
+    extraFields: [],
+  };
+  if (n === "sosyal" || n === "aile") return {
+    titlePlaceholder: "Buluşma / etkinlik (ör: Kahve with Ali)",
+    showPriority: false,
+    showDeadline: true,
+    showCourse: false,
+    showDuration: false,
+    durationLabel: "",
+    showNotes: true,
+    notesPlaceholder: "Kişi, yer, notlar…",
+    extraFields: [],
+  };
+  // Default
+  return {
+    titlePlaceholder: "Görev başlığı…",
+    showPriority: true,
+    showDeadline: true,
+    showCourse: false,
+    showDuration: true,
+    durationLabel: "Tahmini süre (dk)",
+    showNotes: false,
+    notesPlaceholder: "",
+    extraFields: [],
+  };
+}
+
 // ── Add Task inline form ───────────────────────────────────────
-function AddTaskForm({ categoryId, courseList, onSave, onCancel }: {
+function AddTaskForm({ categoryId, categoryName, courseList, onSave, onCancel }: {
   categoryId: string | null;
+  categoryName: string | null;
   courseList: any[];
   onSave: (data: any) => void;
   onCancel: () => void;
 }) {
-  const [form, setForm] = useState({ title: "", description: "", priority: "MEDIUM", deadline: "", courseId: "", estimatedMin: "" });
-  function set(f: string) { return (v: string) => setForm(p => ({ ...p, [f]: v })); }
+  const cfg = getCategoryConfig(categoryName);
+  const [form, setForm] = useState({
+    title: "", description: "", priority: "MEDIUM", deadline: "", courseId: "", estimatedMin: "", notes: "",
+  });
+
+  function inputStyle(): React.CSSProperties {
+    return { padding: "7px 10px", borderRadius: 8, background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text-0)", fontFamily: "var(--font-body)", fontSize: 12, outline: "none", width: "100%" };
+  }
+
+  function save() {
+    if (!form.title.trim()) return;
+    onSave({
+      ...form,
+      categoryId,
+      deadline: form.deadline ? new Date(form.deadline + "T00:00:00").toISOString() : undefined,
+      courseId: form.courseId || undefined,
+      estimatedMin: form.estimatedMin ? parseInt(form.estimatedMin) : undefined,
+      notes: form.notes || undefined,
+    });
+  }
+
   return (
     <div style={{ padding: "16px", borderRadius: 12, border: "1px dashed rgba(91,140,255,0.35)", background: "rgba(91,140,255,0.04)", marginBottom: 8 }}>
       <input
         autoFocus
         value={form.title}
         onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
-        placeholder="Görev başlığı..."
-        onKeyDown={e => { if (e.key === "Enter" && form.title.trim()) { onSave({ ...form, categoryId, deadline: form.deadline ? new Date(form.deadline).toISOString() : undefined, courseId: form.courseId || undefined, estimatedMin: form.estimatedMin ? parseInt(form.estimatedMin) : undefined }); } if (e.key === "Escape") onCancel(); }}
-        style={{ width: "100%", padding: "8px 0", background: "transparent", border: "none", borderBottom: "1px solid var(--border)", color: "var(--text-0)", fontFamily: "var(--font-body)", fontSize: 14, outline: "none", marginBottom: 10 }}
+        placeholder={cfg.titlePlaceholder}
+        onKeyDown={e => { if (e.key === "Enter") save(); if (e.key === "Escape") onCancel(); }}
+        style={{ width: "100%", padding: "8px 0", background: "transparent", border: "none", borderBottom: "1px solid var(--border)", color: "var(--text-0)", fontFamily: "var(--font-body)", fontSize: 14, outline: "none", marginBottom: 12 }}
       />
-      <div className="grid" style={{ gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 10 }}>
-        <select value={form.priority} onChange={e => set("priority")(e.target.value)}
-          style={{ padding: "7px 10px", borderRadius: 8, background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text-0)", fontFamily: "var(--font-body)", fontSize: 12, outline: "none" }}>
-          {Object.entries(PRIORITY_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-        </select>
-        <input type="date" value={form.deadline ? form.deadline.slice(0, 10) : ""} onChange={e => setForm(p => ({ ...p, deadline: e.target.value ? e.target.value + "T00:00:00" : "" }))}
-          style={{ padding: "7px 10px", borderRadius: 8, background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text-0)", fontFamily: "var(--font-body)", fontSize: 12, outline: "none" }} />
-        {courseList.length > 0 && (
-          <select value={form.courseId} onChange={e => set("courseId")(e.target.value)}
-            style={{ padding: "7px 10px", borderRadius: 8, background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text-0)", fontFamily: "var(--font-body)", fontSize: 12, outline: "none" }}>
+
+      {/* Extra category-specific description fields */}
+      {cfg.extraFields.map(f => (
+        <input key={f.key} value={(form as any)[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
+          placeholder={f.placeholder}
+          style={{ ...inputStyle(), marginBottom: 8, display: "block" }} />
+      ))}
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+        {cfg.showPriority && (
+          <select value={form.priority} onChange={e => setForm(p => ({ ...p, priority: e.target.value }))} style={inputStyle()}>
+            {Object.entries(PRIORITY_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select>
+        )}
+        {cfg.showDeadline && (
+          <input type="date" value={form.deadline}
+            onChange={e => setForm(p => ({ ...p, deadline: e.target.value }))}
+            style={inputStyle()} />
+        )}
+        {cfg.showDuration && (
+          <input type="number" placeholder={cfg.durationLabel} value={form.estimatedMin}
+            onChange={e => setForm(p => ({ ...p, estimatedMin: e.target.value }))}
+            style={{ ...inputStyle(), maxWidth: 160 }} />
+        )}
+        {cfg.showCourse && courseList.length > 0 && (
+          <select value={form.courseId} onChange={e => setForm(p => ({ ...p, courseId: e.target.value }))} style={inputStyle()}>
             <option value="">Ders (opsiyonel)</option>
             {courseList.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         )}
       </div>
+
+      {cfg.showNotes && (
+        <textarea value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
+          placeholder={cfg.notesPlaceholder} rows={2}
+          style={{ ...inputStyle(), resize: "none", display: "block", lineHeight: 1.4, marginBottom: 10 }} />
+      )}
+
       <div className="row gap-8">
-        <button className="btn primary sm" disabled={!form.title.trim()}
-          onClick={() => onSave({ ...form, categoryId, deadline: form.deadline ? new Date(form.deadline).toISOString() : undefined, courseId: form.courseId || undefined, estimatedMin: form.estimatedMin ? parseInt(form.estimatedMin) : undefined })}>
+        <button className="btn primary sm" disabled={!form.title.trim()} onClick={save}>
           <Icon name="plus" size={12} />Ekle
         </button>
         <button className="btn ghost sm" onClick={onCancel}>İptal <span className="mono dim" style={{ fontSize: 10 }}>ESC</span></button>
@@ -233,8 +338,7 @@ function AddTaskForm({ categoryId, courseList, onSave, onCancel }: {
 // ── Category section ──────────────────────────────────────────
 function CategorySection({ cat, taskList, courseList, showDone }: {
   cat: { id: string; name: string; color: string; icon: string } | null;
-  taskList: any[];
-  courseList: any[];
+  taskList: any[];  courseList: any[];
   showDone: boolean;
 }) {
   const qc = useQueryClient();
@@ -279,6 +383,7 @@ function CategorySection({ cat, taskList, courseList, showDone }: {
           {adding && (
             <AddTaskForm
               categoryId={cat?.id ?? null}
+              categoryName={cat?.name ?? null}
               courseList={courseList}
               onSave={data => createMut.mutate(data)}
               onCancel={() => setAdding(false)}
