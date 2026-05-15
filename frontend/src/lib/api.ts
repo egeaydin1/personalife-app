@@ -54,9 +54,19 @@ export const integrations = {
   remove: (id: string) => request<void>(`/integrations/${id}`, { method: "DELETE" }),
 };
 
+// ── Categories ───────────────────────────────────────────────
+export const categories = {
+  list: () => request<{ categories: any[]; templates: any[] }>("/categories"),
+  create: (data: { name: string; color?: string; icon?: string }) =>
+    request<any>("/categories", { method: "POST", body: JSON.stringify(data) }),
+  update: (id: string, data: any) =>
+    request<any>(`/categories/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  remove: (id: string) => request<void>(`/categories/${id}`, { method: "DELETE" }),
+};
+
 // ── Tasks ─────────────────────────────────────────────────────
 export const tasks = {
-  list: (params?: { status?: string; courseId?: string }) => {
+  list: (params?: { status?: string; courseId?: string; categoryId?: string }) => {
     const qs = params ? "?" + new URLSearchParams(params as any).toString() : "";
     return request<any[]>(`/tasks${qs}`);
   },

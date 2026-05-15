@@ -8,6 +8,7 @@ const taskSchema = z.object({
   description: z.string().optional(),
   courseId: z.string().optional(),
   goalId: z.string().optional(),
+  categoryId: z.string().optional(),
   deadline: z.string().datetime().optional(),
   priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
   status: z.enum(["TODO", "IN_PROGRESS", "DONE", "CANCELLED"]).optional(),
@@ -15,12 +16,19 @@ const taskSchema = z.object({
   notes: z.string().optional(),
 });
 
+const INCLUDE = {
+  course: { select: { name: true, color: true } },
+  category: { select: { id: true, name: true, color: true, icon: true } },
+  progressLogs: { orderBy: { createdAt: "desc" as const }, take: 1 },
+};
+
 export async function taskRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authenticate);
 
   app.get("/tasks", async (req) => {
     const query = z.object({
       status: z.string().optional(),
+      categoryId: z.string().optional(),
       courseId: z.string().optional(),
     }).parse(req.query);
 
@@ -28,12 +36,14 @@ export async function taskRoutes(app: FastifyInstance) {
       where: {
         userId: req.user.id,
         ...(query.status ? { status: query.status as any } : {}),
+        ...(query.categoryId === "uncategorized"
+          ? { categoryId: null }
+          : query.categoryId
+          ? { categoryId: query.categoryId }
+          : {}),
         ...(query.courseId ? { courseId: query.courseId } : {}),
       },
-      include: {
-        course: { select: { name: true, color: true } },
-        progressLogs: { orderBy: { createdAt: "desc" }, take: 1 },
-      },
+      include: INCLUDE,
       orderBy: [{ status: "asc" }, { priority: "desc" }, { deadline: "asc" }],
     });
   });
@@ -41,7 +51,12 @@ export async function taskRoutes(app: FastifyInstance) {
   app.post("/tasks", async (req, reply) => {
     const body = taskSchema.parse(req.body);
     const task = await prisma.task.create({
-      data: { ...body, userId: req.user.id, deadline: body.deadline ? new Date(body.deadline) : undefined },
+      data: {
+        ...body,
+        userId: req.user.id,
+        deadline: body.deadline ? new Date(body.deadline) : undefined,
+      },
+      include: INCLUDE,
     });
     return reply.status(201).send(task);
   });
@@ -56,6 +71,7 @@ export async function taskRoutes(app: FastifyInstance) {
     return prisma.task.update({
       where: { id },
       data: { ...body, deadline: body.deadline ? new Date(body.deadline) : undefined },
+      include: INCLUDE,
     });
   });
 
@@ -71,12 +87,8 @@ export async function taskRoutes(app: FastifyInstance) {
   app.post("/tasks/:id/progress", async (req, reply) => {
     const { id } = req.params as { id: string };
     const body = z.object({ progress: z.number().min(0).max(100), note: z.string().optional() }).parse(req.body);
-
     const task = await prisma.task.findFirst({ where: { id, userId: req.user.id } });
     if (!task) return reply.status(404).send({ error: "Not found" });
-
-    return reply.status(201).send(
-      await prisma.taskProgressLog.create({ data: { taskId: id, ...body } })
-    );
+    return reply.status(201).send(await prisma.taskProgressLog.create({ data: { taskId: id, ...body } }));
   });
 }

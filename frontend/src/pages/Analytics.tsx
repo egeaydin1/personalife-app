@@ -230,7 +230,7 @@ export default function Analytics() {
   const screenMinWeek = weekly?.screenByApp?.reduce((s: number, a: any) => s + a.minutes, 0) ?? 0;
 
   const kpis = [
-    { label: "CHECK-IN (BU HAFTA)", val: weekly ? `${weekly.checkinsCompleted ?? 0}/7`, color: "#A3E635", spark: null },
+    { label: "CHECK-IN (BU HAFTA)", val: weekly ? `${weekly.checkinsCompleted ?? 0}/7` : "—", color: "#A3E635", spark: null },
     { label: "OKUL SAATİ", val: schoolHours > 0 ? `${Math.round(schoolHours / 60 * 10) / 10}s` : "—", color: "#5B8CFF", spark: null },
     { label: "SOSYAL SAATİ", val: socialHours > 0 ? `${Math.round(socialHours / 60 * 10) / 10}s` : "—", color: "#F472B6", spark: null },
     { label: "EKRAN SÜRESİ", val: screenMinWeek > 0 ? `${Math.round(screenMinWeek / 60 * 10) / 10}s` : "—", color: "#22D3EE", spark: null },
