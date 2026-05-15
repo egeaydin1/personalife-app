@@ -183,11 +183,27 @@ export async function executeTool(
     case "create_activity_log": {
       let category = null;
       if (args.categoryName) {
-        category = await prisma.activityCategory.upsert({
-          where: { name: args.categoryName as string },
-          create: { name: args.categoryName as string },
-          update: {},
+        const catName = (args.categoryName as string).toLowerCase().trim();
+        // Find existing user category (case-insensitive) or create one
+        category = await prisma.activityCategory.findFirst({
+          where: { userId, name: { equals: catName, mode: "insensitive" } },
         });
+        if (!category) {
+          const CAT_COLORS: Record<string, { color: string; icon: string }> = {
+            okul: { color: "#5B8CFF", icon: "school" },
+            iş: { color: "#F59E0B", icon: "zap" },
+            sosyal: { color: "#F472B6", icon: "users" },
+            dijital: { color: "#22D3EE", icon: "phone" },
+            spor: { color: "#A3E635", icon: "heart" },
+            kişisel: { color: "#8B5CF6", icon: "sparkles" },
+            aile: { color: "#F59E0B", icon: "users" },
+            dinlenme: { color: "#8B5CF6", icon: "moon" },
+          };
+          const meta = CAT_COLORS[catName] ?? { color: "#5b6390", icon: "sparkles" };
+          category = await prisma.activityCategory.create({
+            data: { name: catName, userId, ...meta },
+          });
+        }
       }
 
       const tagNames = (args.tags as string[]) ?? [];
