@@ -1,15 +1,26 @@
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
+import { useEffect, useRef } from "react";
 import Sidebar from "./Sidebar";
 
 export default function Layout() {
+  const location = useLocation();
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }, [location.pathname]);
+
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar />
-      <main className="flex-1 overflow-y-auto bg-muted/20">
-        <div className="mx-auto max-w-5xl p-6">
-          <Outlet />
-        </div>
-      </main>
-    </div>
+    <>
+      <div className="app-bg" />
+      <div className="app">
+        <Sidebar />
+        <main className="main">
+          <div className="main-scroll" ref={scrollRef} key={location.pathname}>
+            <Outlet />
+          </div>
+        </main>
+      </div>
+    </>
   );
 }

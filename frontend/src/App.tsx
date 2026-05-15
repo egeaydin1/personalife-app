@@ -10,6 +10,7 @@ import Schedule from "@/pages/Schedule";
 import Friends from "@/pages/Friends";
 import ScreenTime from "@/pages/ScreenTime";
 import Analytics from "@/pages/Analytics";
+import Memory from "@/pages/Memory";
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   return isAuthenticated() ? <>{children}</> : <Navigate to="/login" replace />;
@@ -36,6 +37,7 @@ export default function App() {
           <Route path="friends" element={<Friends />} />
           <Route path="screen-time" element={<ScreenTime />} />
           <Route path="analytics" element={<Analytics />} />
+          <Route path="memory" element={<Memory />} />
         </Route>
       </Routes>
     </BrowserRouter>
