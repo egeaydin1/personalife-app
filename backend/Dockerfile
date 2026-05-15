@@ -1,6 +1,6 @@
 FROM node:20-alpine AS base
 WORKDIR /app
-RUN apk add --no-cache python3 make g++ tesseract-ocr tesseract-ocr-data-eng tesseract-ocr-data-tur
+RUN apk add --no-cache python3 make g++ openssl openssl-dev tesseract-ocr tesseract-ocr-data-eng tesseract-ocr-data-tur
 
 # ── development ─────────────────────────────────────────────────────────────
 FROM base AS development
@@ -22,7 +22,7 @@ RUN npm run build
 # ── production ───────────────────────────────────────────────────────────────
 FROM node:20-alpine AS production
 WORKDIR /app
-RUN apk add --no-cache tesseract-ocr tesseract-ocr-data-eng tesseract-ocr-data-tur
+RUN apk add --no-cache openssl tesseract-ocr tesseract-ocr-data-eng tesseract-ocr-data-tur
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/prisma ./prisma
