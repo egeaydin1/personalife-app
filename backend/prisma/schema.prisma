@@ -1,0 +1,406 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────
+// User & Settings
+// ─────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  timezone     String   @default("Europe/Istanbul")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  settings          UserSettings?
+  tasks             Task[]
+  courses           Course[]
+  calendarEvents    CalendarEvent[]
+  dailyCheckins     DailyCheckin[]
+  activityLogs      ActivityLog[]
+  screenTimeUploads ScreenTimeUpload[]
+  friends           Friend[]
+  agentMessages     AgentMessage[]
+  agentTriggers     AgentTrigger[]
+  memorySnapshot    MemorySnapshot?
+  goals             Goal[]
+
+  @@map("users")
+}
+
+model UserSettings {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notificationsEnabled Boolean  @default(true)
+  checkinTime          String   @default("21:00")
+  morningFollowupTime  String   @default("08:00")
+  llmModel             String   @default("anthropic/claude-3.5-sonnet")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@map("user_settings")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Tasks & Goals
+// ─────────────────────────────────────────────────────────────
+
+model Task {
+  id           String     @id @default(cuid())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title        String
+  description  String?
+  courseId     String?
+  course       Course?    @relation(fields: [courseId], references: [id])
+  goalId       String?
+  goal         Goal?      @relation(fields: [goalId], references: [id])
+  deadline     DateTime?
+  priority     Priority   @default(MEDIUM)
+  status       TaskStatus @default(TODO)
+  estimatedMin Int?
+  notes        String?
+  progressLogs TaskProgressLog[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([userId, status])
+  @@index([userId, deadline])
+  @@map("tasks")
+}
+
+model TaskProgressLog {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  note      String?
+  progress  Int
+  createdAt DateTime @default(now())
+
+  @@map("task_progress_logs")
+}
+
+model Goal {
+  id          String     @id @default(cuid())
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  categoryId  String?
+  category    ActivityCategory? @relation(fields: [categoryId], references: [id])
+  targetDate  DateTime?
+  status      GoalStatus @default(ACTIVE)
+  tasks       Task[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([userId, status])
+  @@map("goals")
+}
+
+// ─────────────────────────────────────────────────────────────
+// School / Courses
+// Merged school_courses + school_schedule_entries using RRULE-style recurrence
+// ─────────────────────────────────────────────────────────────
+
+model Course {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
+  teacher       String?
+  room          String?
+  color         String?
+  daysOfWeek    Int[]    // 0=Sun … 6=Sat
+  startTime     String   // HH:mm
+  endTime       String   // HH:mm
+  semesterStart DateTime @db.Date
+  semesterEnd   DateTime @db.Date
+  tasks         Task[]
+  activityLogs  ActivityLog[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+  @@map("courses")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Calendar
+// ─────────────────────────────────────────────────────────────
+
+model CalendarEvent {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  startAt     DateTime
+  endAt       DateTime
+  isAllDay    Boolean   @default(false)
+  source      String    @default("manual")
+  externalId  String?
+  categoryId  String?
+  category    ActivityCategory? @relation(fields: [categoryId], references: [id])
+  triggeredAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId, startAt])
+  @@map("calendar_events")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Daily Check-ins & Activity Logs
+// ─────────────────────────────────────────────────────────────
+
+model DailyCheckin {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date        DateTime  @db.Date
+  rawText     String?
+  summary     String?
+  mood        Int?
+  energyLevel Int?
+  messages    AgentMessage[]
+  activityLogs ActivityLog[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([userId, date])
+  @@index([userId, date])
+  @@map("daily_checkins")
+}
+
+model ActivityLog {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  checkinId   String?
+  checkin     DailyCheckin? @relation(fields: [checkinId], references: [id])
+  courseId    String?
+  course      Course?   @relation(fields: [courseId], references: [id])
+  title       String
+  description String?
+  startAt     DateTime?
+  endAt       DateTime?
+  durationMin Int?
+  categoryId  String?
+  category    ActivityCategory? @relation(fields: [categoryId], references: [id])
+  tags        ActivityTag[]
+  confidence  Float?
+  source      String    @default("checkin")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId, createdAt])
+  @@map("activity_logs")
+}
+
+model ActivityCategory {
+  id           String    @id @default(cuid())
+  name         String    @unique
+  color        String?
+  icon         String?
+  isSystem     Boolean   @default(false)
+  activityLogs ActivityLog[]
+  calendarEvents CalendarEvent[]
+  goals        Goal[]
+  createdAt    DateTime  @default(now())
+
+  @@map("activity_categories")
+}
+
+model ActivityTag {
+  id           String        @id @default(cuid())
+  name         String        @unique
+  activityLogs ActivityLog[]
+  createdAt    DateTime      @default(now())
+
+  @@map("activity_tags")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Screen Time
+// ─────────────────────────────────────────────────────────────
+
+model ScreenTimeUpload {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  filename    String
+  storagePath String
+  date        DateTime  @db.Date
+  status      OcrStatus @default(PENDING)
+  jobId       String?
+  entries     ScreenTimeEntry[]
+  createdAt   DateTime  @default(now())
+
+  @@index([userId, date])
+  @@map("screen_time_uploads")
+}
+
+model ScreenTimeEntry {
+  id          String           @id @default(cuid())
+  uploadId    String
+  upload      ScreenTimeUpload @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+  appName     String
+  durationMin Int
+  category    String?
+  confidence  Float?
+  createdAt   DateTime         @default(now())
+
+  @@map("screen_time_entries")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Friends / Social Memory
+// ─────────────────────────────────────────────────────────────
+
+model Friend {
+  id               String    @id @default(cuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name             String
+  description      String?
+  relationshipType String?
+  lastContactAt    DateTime?
+  proximityLabel   String?
+  memories         FriendMemory[]
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("friends")
+}
+
+model FriendMemory {
+  id        String   @id @default(cuid())
+  friendId  String
+  friend    Friend   @relation(fields: [friendId], references: [id], onDelete: Cascade)
+  content   String
+  date      DateTime
+  tags      String[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([friendId, date])
+  @@map("friend_memories")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Agent
+// ─────────────────────────────────────────────────────────────
+
+model AgentMessage {
+  id        String      @id @default(cuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  checkinId String?
+  checkin   DailyCheckin? @relation(fields: [checkinId], references: [id])
+  role      MessageRole
+  content   String
+  toolCalls Json?
+  triggerId String?
+  createdAt DateTime    @default(now())
+
+  @@index([userId, createdAt])
+  @@map("agent_messages")
+}
+
+model AgentTrigger {
+  id          String        @id @default(cuid())
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        TriggerType
+  status      TriggerStatus @default(PENDING)
+  scheduledAt DateTime
+  firedAt     DateTime?
+  failedAt    DateTime?
+  retryCount  Int           @default(0)
+  payload     Json?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([userId, status, scheduledAt])
+  @@map("agent_triggers")
+}
+
+model MemorySnapshot {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content   String
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@map("memory_snapshots")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+enum GoalStatus {
+  ACTIVE
+  COMPLETED
+  PAUSED
+  ABANDONED
+}
+
+enum OcrStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+  TOOL
+}
+
+enum TriggerType {
+  DAILY_CHECKIN
+  MORNING_FOLLOWUP
+  POST_CLASS
+  POST_CALENDAR_EVENT
+  DEADLINE_APPROACHING
+  MISSING_LOG
+  LONG_SILENCE
+  POST_SOCIAL_EVENT
+}
+
+enum TriggerStatus {
+  PENDING
+  FIRED
+  FAILED
+  SKIPPED
+  CANCELLED
+}
