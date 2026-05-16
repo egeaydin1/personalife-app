@@ -369,15 +369,15 @@ function CategorySection({ cat, taskList, courseList, showDone }: {
   const qc = useQueryClient();
   const [adding, setAdding] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-  const [timelineView, setTimelineView] = useState(false);
 
   const active = taskList.filter(t => !["DONE", "CANCELLED"].includes(t.status));
   const done = taskList.filter(t => ["DONE", "CANCELLED"].includes(t.status));
   const shown = showDone ? [...active, ...done] : active;
   const color = cat?.color ?? "var(--text-3)";
 
-  // Does this category have milestones?
+  // If category has milestones → always use timeline view, no toggle
   const hasMilestones = taskList.some(t => t.isMilestone && !t.parentId);
+  const timelineView = hasMilestones && cat !== null;
 
   const createMut = useMutation({
     mutationFn: (d: any) => tasks.create(d),
@@ -412,22 +412,11 @@ function CategorySection({ cat, taskList, courseList, showDone }: {
           <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${color}30, transparent)` }} />
           <Icon name={collapsed ? "arrow-down" : "arrow-up"} size={14} stroke={1.5} />
         </div>
-        {/* Timeline toggle — only if milestones exist */}
+        {/* Timeline indicator */}
         {hasMilestones && !collapsed && (
-          <button
-            onClick={() => setTimelineView(v => !v)}
-            style={{
-              display: "flex", alignItems: "center", gap: 6,
-              padding: "5px 10px", borderRadius: 8, cursor: "pointer",
-              background: timelineView ? `${color}15` : "var(--surface)",
-              border: `1px solid ${timelineView ? `${color}55` : "var(--border)"}`,
-              color: timelineView ? color : "var(--text-2)",
-              fontSize: 11.5, fontFamily: "var(--font-mono)", letterSpacing: "0.06em",
-              transition: "all 160ms", flexShrink: 0,
-            }}>
-            <Icon name="target" size={12} />
-            {timelineView ? "Liste görünümü" : "Timeline görünümü"}
-          </button>
+          <span className="chip purple" style={{ fontSize: 10, flexShrink: 0 }}>
+            <Icon name="target" size={10} />Timeline modu
+          </span>
         )}
       </div>
 

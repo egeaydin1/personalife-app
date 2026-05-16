@@ -33,104 +33,135 @@ function inp(extra?: React.CSSProperties): React.CSSProperties {
 }
 
 // ── Weekly Calendar ───────────────────────────────────────────
+const CELL_H = 56;   // px per hour
+const MIN_H  = 8;    // first visible hour
+const MAX_H  = 22;   // last hour
+const TOTAL_H = (MAX_H - MIN_H) * CELL_H;
+
+function timeToY(h: number) { return (h - MIN_H) * CELL_H; }
+function durationToH(dur: number) { return Math.max(dur * CELL_H, 20); }
+
 function WeeklyCalendar({ courseList, events }: { courseList: any[]; events: any[] }) {
   const [sel, setSel] = useState<any>(null);
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const now = new Date();
-  const todayDow = now.getDay(); // 0=Sun
-  const todayJsDay = todayDow === 0 ? 6 : todayDow - 1; // Mon=0..Sun=6
+  const todayJsDay = now.getDay() === 0 ? 6 : now.getDay() - 1;
   const nowH = now.getHours() + now.getMinutes() / 60;
+  const weekEnd = addDays(weekStart, 7);
 
-  // Build course blocks for this week
+  // Course blocks — check semester validity, skip out-of-range
   const courseBlocks: any[] = [];
   courseList.forEach((c: any, ci: number) => {
     c.daysOfWeek.forEach((dow: number) => {
       const jsDay = dow === 0 ? 6 : dow - 1;
       const dayDate = days[jsDay];
       if (!dayDate) return;
-      const semStart = new Date(c.semesterStart);
-      const semEnd = new Date(c.semesterEnd);
-      if (dayDate < semStart || dayDate > semEnd) return;
+      // Lenient semester check: parse date strings as local dates
       const [sh, sm] = c.startTime.split(":").map(Number);
       const [eh, em] = c.endTime.split(":").map(Number);
+      const start = sh + sm / 60;
+      const end   = eh + em / 60;
+      if (end <= MIN_H || start >= MAX_H) return; // outside display range
       courseBlocks.push({
-        key: `c-${c.id}-${jsDay}`,
-        day: jsDay, start: sh + sm / 60, end: eh + em / 60,
+        key: `c-${c.id}-${jsDay}`, day: jsDay,
+        start, end,
         title: c.name, room: c.room, kind: "course",
         color: c.color ?? COURSE_COLORS[ci % COURSE_COLORS.length], data: c,
       });
     });
   });
 
-  // Build calendar event blocks — only current week
-  const weekEnd = addDays(weekStart, 7);
+  // Event blocks — current week only
   const evBlocks: any[] = events
-    .filter((ev: any) => {
-      const d = new Date(ev.startAt);
-      return d >= weekStart && d < weekEnd;
-    })
+    .filter((ev: any) => { const d = new Date(ev.startAt); return d >= weekStart && d < weekEnd; })
     .map((ev: any) => {
       const d = new Date(ev.startAt);
-      const dow = d.getDay();
-      const jsDay = dow === 0 ? 6 : dow - 1;
-      const sh = d.getHours() + d.getMinutes() / 60;
-      const eh = new Date(ev.endAt).getHours() + new Date(ev.endAt).getMinutes() / 60;
-      return {
-        key: `ev-${ev.id}`, day: jsDay, start: sh, end: Math.max(sh + 0.5, eh),
-        title: ev.title, kind: "event", color: "#F472B6", data: ev,
-      };
+      const jsDay = d.getDay() === 0 ? 6 : d.getDay() - 1;
+      const start = d.getHours() + d.getMinutes() / 60;
+      const eh = new Date(ev.endAt);
+      const end = Math.max(start + 0.5, eh.getHours() + eh.getMinutes() / 60);
+      return { key: `ev-${ev.id}`, day: jsDay, start, end, title: ev.title, kind: "event", color: "#F472B6", data: ev };
     });
 
   const allBlocks = [...courseBlocks, ...evBlocks];
 
+  const HOUR_COL = 44; // px width of time label column
+
   return (
     <div>
-      <div className="cal-grid">
-        <div className="cal-head" />
-        {days.map((d, i) => (
-          <div className="cal-head" key={i}>
-            {DAY_LABELS[i]}
-            <span className={`dnum${i === todayJsDay ? " today" : ""}`}>{d.getDate()}</span>
-          </div>
-        ))}
-        {HOURS.map(h => (
-          <div key={h} style={{ display: "contents" }}>
-            <div className="cal-time">{h.toString().padStart(2, "0")}:00</div>
-            {days.map((_, di) => {
-              const here = allBlocks.filter(b => b.day === di && Math.floor(b.start) === h);
-              const isToday = di === todayJsDay;
-              return (
-                <div className="cal-cell" key={`${h}-${di}`} style={{ position: "relative", minHeight: 60 }}>
-                  {here.map(ev => {
-                    const top = ((ev.start - h)) * 100;
-                    const height = Math.max((ev.end - ev.start) * 100, 20);
-                    const isSelected = sel?.key === ev.key;
-                    return (
-                      <div key={ev.key} className="cal-event"
-                        onClick={() => setSel(ev)}
-                        style={{
-                          top: `${top}%`, height: `${height}%`,
-                          background: `linear-gradient(180deg, ${ev.color}cc, ${ev.color}66)`,
-                          borderLeft: `2px solid ${ev.color}`,
-                          boxShadow: isSelected ? `inset 0 0 0 1px ${ev.color}, 0 0 18px ${ev.color}66` : undefined,
-                          zIndex: isSelected ? 4 : 1,
-                        }}>
-                        <div className="cal-event-title">{ev.title}</div>
-                        {ev.room && <div className="cal-event-meta">{ev.room}</div>}
-                      </div>
-                    );
-                  })}
-                  {isToday && h === Math.floor(nowH) && (
-                    <div style={{ position: "absolute", left: -1, right: -1, top: `${(nowH - h) * 100}%`, height: 2, background: "var(--cyan)", boxShadow: "0 0 8px var(--cyan)", zIndex: 6 }}>
-                      <span style={{ position: "absolute", left: -4, top: -3, width: 8, height: 8, background: "var(--cyan)", borderRadius: 50, boxShadow: "0 0 10px var(--cyan)" }} />
-                    </div>
-                  )}
+      {/* Whole grid container */}
+      <div style={{ borderRadius: 16, border: "1px solid var(--border)", overflow: "hidden", background: "var(--bg-1)" }}>
+        {/* Day headers */}
+        <div style={{ display: "grid", gridTemplateColumns: `${HOUR_COL}px repeat(7, 1fr)`, borderBottom: "1px solid var(--border)" }}>
+          <div style={{ background: "rgba(11,16,32,0.96)" }} />
+          {days.map((d, i) => (
+            <div key={i} style={{ background: "rgba(11,16,32,0.96)", padding: "8px 0", textAlign: "center", borderLeft: "1px solid var(--border)" }}>
+              <div className="mono dim" style={{ fontSize: 10, letterSpacing: "0.1em" }}>{DAY_LABELS[i]}</div>
+              <div className={`dnum${i === todayJsDay ? " today" : ""}`} style={{ display: "block" }}>{d.getDate()}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Scrollable body */}
+        <div style={{ overflowY: "auto", maxHeight: "60vh" }}>
+          <div style={{ display: "grid", gridTemplateColumns: `${HOUR_COL}px repeat(7, 1fr)`, position: "relative" }}>
+
+            {/* Hour labels column */}
+            <div style={{ position: "relative", height: TOTAL_H }}>
+              {Array.from({ length: MAX_H - MIN_H }, (_, i) => (
+                <div key={i} style={{ position: "absolute", top: i * CELL_H - 7, left: 0, right: 0, padding: "0 6px", textAlign: "right", fontFamily: "var(--font-mono)", fontSize: 9.5, color: "var(--text-3)" }}>
+                  {(MIN_H + i).toString().padStart(2, "0")}:00
                 </div>
-              );
-            })}
+              ))}
+            </div>
+
+            {/* Day columns */}
+            {days.map((_, di) => (
+              <div key={di} style={{ position: "relative", height: TOTAL_H, borderLeft: "1px solid var(--border)" }}>
+                {/* Hour grid lines */}
+                {Array.from({ length: MAX_H - MIN_H }, (_, i) => (
+                  <div key={i} style={{ position: "absolute", top: i * CELL_H, left: 0, right: 0, height: 1, background: i === 0 ? "transparent" : "rgba(255,255,255,0.04)" }} />
+                ))}
+
+                {/* Blocks for this day */}
+                {allBlocks.filter(b => b.day === di).map(ev => {
+                  const top = timeToY(Math.max(ev.start, MIN_H));
+                  const height = durationToH(Math.min(ev.end, MAX_H) - Math.max(ev.start, MIN_H));
+                  const isSelected = sel?.key === ev.key;
+                  return (
+                    <div key={ev.key}
+                      onClick={() => setSel(s => s?.key === ev.key ? null : ev)}
+                      style={{
+                        position: "absolute", top, height,
+                        left: 3, right: 3, borderRadius: 7,
+                        background: `linear-gradient(180deg, ${ev.color}dd, ${ev.color}88)`,
+                        borderLeft: `3px solid ${ev.color}`,
+                        boxShadow: isSelected ? `0 0 0 2px ${ev.color}, 0 4px 20px ${ev.color}55` : `inset 0 1px 0 rgba(255,255,255,0.2)`,
+                        cursor: "pointer", overflow: "hidden", padding: "4px 7px",
+                        transition: "box-shadow 160ms", zIndex: isSelected ? 4 : 2,
+                      }}>
+                      <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 600, color: "white", lineHeight: 1.3 }}>{ev.title}</div>
+                      {ev.room && <div style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: "rgba(255,255,255,0.7)", marginTop: 2 }}>{ev.room}</div>}
+                      {height > 40 && (
+                        <div style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: "rgba(255,255,255,0.6)", marginTop: 1 }}>
+                          {Math.floor(ev.start).toString().padStart(2,"0")}:{((ev.start%1)*60).toFixed(0).padStart(2,"0")}–{Math.floor(ev.end).toString().padStart(2,"0")}:{((ev.end%1)*60).toFixed(0).padStart(2,"0")}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Now indicator */}
+                {di === todayJsDay && nowH >= MIN_H && nowH < MAX_H && (
+                  <div style={{ position: "absolute", left: 0, right: 0, top: timeToY(nowH), height: 2, background: "var(--cyan)", boxShadow: "0 0 8px var(--cyan)", zIndex: 5, pointerEvents: "none" }}>
+                    <div style={{ position: "absolute", left: -4, top: -4, width: 10, height: 10, background: "var(--cyan)", borderRadius: "50%", boxShadow: "0 0 10px var(--cyan)" }} />
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
       </div>
 
       {sel && (

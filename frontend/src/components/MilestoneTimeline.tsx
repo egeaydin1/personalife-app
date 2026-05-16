@@ -102,7 +102,7 @@ function MilestoneNode({
   onToggleMilestone: () => void;
   onToggleSubtask: (id: string) => void;
   onDeleteSubtask: (id: string) => void;
-  onAddSubtask: (milestoneId: string) => void;
+  onAddSubtask: (milestoneId: string, title: string) => void;
 }) {
   const [expanded, setExpanded] = useState(phase !== "past");
   const [addTitle, setAddTitle] = useState("");
@@ -244,10 +244,10 @@ function MilestoneNode({
                   <div className="row gap-8">
                     <input autoFocus value={addTitle} onChange={e => setAddTitle(e.target.value)}
                       placeholder="Görev başlığı…"
-                      onKeyDown={e => { if (e.key === "Enter" && addTitle.trim()) { onAddSubtask(milestone.id); setAddTitle(""); setAdding(false); } if (e.key === "Escape") { setAdding(false); setAddTitle(""); } }}
+                      onKeyDown={e => { if (e.key === "Enter" && addTitle.trim()) { onAddSubtask(milestone.id, addTitle.trim()); setAddTitle(""); setAdding(false); } if (e.key === "Escape") { setAdding(false); setAddTitle(""); } }}
                       style={{ flex: 1, padding: "7px 10px", borderRadius: 8, background: "var(--surface)", border: "1px solid var(--border-strong)", color: "var(--text-0)", fontFamily: "var(--font-body)", fontSize: 12, outline: "none" }} />
                     <button className="btn primary sm" disabled={!addTitle.trim()}
-                      onClick={() => { if (addTitle.trim()) { onAddSubtask(milestone.id); setAddTitle(""); setAdding(false); } }}>
+                      onClick={() => { if (addTitle.trim()) { onAddSubtask(milestone.id, addTitle.trim()); setAddTitle(""); setAdding(false); } }}>
                       Ekle
                     </button>
                     <button className="btn ghost sm" onClick={() => { setAdding(false); setAddTitle(""); }}>İptal</button>
@@ -406,10 +406,7 @@ export function MilestoneTimeline({ allTasks, categoryColor, categoryId, categor
             onToggleMilestone={() => completeMilestone(m.id)}
             onToggleSubtask={toggleTask}
             onDeleteSubtask={id => deleteMut.mutate(id)}
-            onAddSubtask={(milestoneId) => {
-              const title = prompt("Alt görev adı:");
-              if (title?.trim()) addSubtask(milestoneId, title.trim());
-            }}
+            onAddSubtask={(milestoneId, title) => addSubtask(milestoneId, title)}
           />
         ))}
       </div>
