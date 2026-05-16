@@ -282,8 +282,8 @@ export function MilestoneTimeline({ allTasks, categoryColor, categoryId, categor
       return 0;
     });
 
-  const getSubtasks = (milestoneId: string): Task[] =>
-    allTasks.filter(t => t.parentId === milestoneId);
+  // Subtasks are embedded in each milestone via TASK_INCLUDE — don't re-filter allTasks
+  const getSubtasks = (milestone: Task): Task[] => (milestone as any).subtasks ?? [];
 
   // Current milestone = first non-done milestone
   const currentIdx = milestones.findIndex(m => !isDone(m));
@@ -398,8 +398,7 @@ export function MilestoneTimeline({ allTasks, categoryColor, categoryId, categor
         {milestones.map((m, i) => (
           <MilestoneNode key={m.id}
             milestone={m}
-            subtasks={getSubtasks(m.id)}
-            phase={phaseOf(m, currentIdx, i)}
+            subtasks={getSubtasks(m)}            phase={phaseOf(m, currentIdx, i)}
             position={i}
             total={milestones.length}
             color={categoryColor}

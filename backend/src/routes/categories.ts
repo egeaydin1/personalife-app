@@ -64,11 +64,17 @@ export async function categoryRoutes(app: FastifyInstance) {
 
   app.delete("/categories/:id", async (req, reply) => {
     const { id } = req.params as { id: string };
-    const cat = await prisma.activityCategory.findFirst({ where: { id, userId: req.user.id } });
+    // Find by id first (userId may be null for old categories)
+    const cat = await prisma.activityCategory.findFirst({ where: { id } });
     if (!cat) return reply.status(404).send({ error: "Not found" });
+    // Ownership check: only allow if userId matches or is null (legacy)
+    if (cat.userId && cat.userId !== req.user.id) {
+      return reply.status(403).send({ error: "Forbidden" });
+    }
 
-    // Unlink tasks before deleting
+    // Unlink tasks, then delete
     await prisma.task.updateMany({ where: { categoryId: id }, data: { categoryId: null } });
+    await prisma.activityLog.updateMany({ where: { categoryId: id }, data: { categoryId: null } });
     await prisma.activityCategory.delete({ where: { id } });
     return reply.status(204).send();
   });

@@ -422,7 +422,7 @@ function CategorySection({ cat, taskList, courseList, showDone }: {
 
       {!collapsed && (
         <div style={{ marginLeft: 38 }}>
-          {/* ── Timeline view ── */}
+          {/* ── Timeline view (milestones) ── */}
           {timelineView && cat && (
             <MilestoneTimeline
               allTasks={taskList}
@@ -432,11 +432,14 @@ function CategorySection({ cat, taskList, courseList, showDone }: {
             />
           )}
 
-          {/* ── List view ── */}
-          {!timelineView && (
-            <>
-              {/* Milestones first (in list view) */}
-              {milestones.length > 0 && (
+          {/* ── Regular (non-milestone) tasks — always visible ── */}
+          {(timelineView ? regular.length > 0 || adding : true) && (
+            <div style={{ marginTop: timelineView && (regular.length > 0 || adding) ? 16 : 0 }}>
+              {timelineView && regular.length > 0 && (
+                <div className="mono dim fs-11" style={{ letterSpacing: "0.14em", marginBottom: 8, paddingTop: 4 }}>DİĞER GÖREVLER</div>
+              )}
+              {/* Milestones as list items (only in non-timeline mode) */}
+              {!timelineView && milestones.length > 0 && (
                 <div style={{ marginBottom: 8 }}>
                   <div className="mono dim fs-11" style={{ letterSpacing: "0.14em", marginBottom: 6 }}>MILESTONES</div>
                   {milestones.map(t => (
@@ -446,8 +449,6 @@ function CategorySection({ cat, taskList, courseList, showDone }: {
                   ))}
                 </div>
               )}
-
-              {/* Regular tasks */}
               {adding && (
                 <AddTaskForm categoryId={cat?.id ?? null} categoryName={cat?.name ?? null} courseList={courseList}
                   onSave={d => createMut.mutate(d)} onCancel={() => setAdding(false)} />
@@ -457,13 +458,19 @@ function CategorySection({ cat, taskList, courseList, showDone }: {
                   onToggle={() => updateMut.mutate({ id: t.id, data: { status: STATUS_NEXT[t.status] ?? "TODO" } })}
                   onDelete={() => deleteMut.mutate(t.id)} />
               ))}
-              {shown.length === 0 && !adding && (
+              {shown.length === 0 && !adding && !timelineView && (
                 <p className="muted fs-12" style={{ padding: "6px 0", fontStyle: "italic" }}>Henüz görev yok.</p>
               )}
               <button className="btn ghost sm" style={{ marginTop: 6 }} onClick={() => setAdding(true)}>
                 <Icon name="plus" size={13} />Görev ekle
               </button>
-            </>
+            </div>
+          )}
+          {/* Empty state in timeline mode with no regular tasks */}
+          {timelineView && regular.length === 0 && !adding && (
+            <button className="btn ghost sm" style={{ marginTop: 12 }} onClick={() => setAdding(true)}>
+              <Icon name="plus" size={13} />Normal görev ekle
+            </button>
           )}
         </div>
       )}
@@ -485,9 +492,16 @@ export default function Tasks() {
   const userCats = catData?.categories ?? [];
   const all = taskList as any[];
 
+  const [deleteConfirmTab, setDeleteConfirmTab] = useState<string | null>(null);
   const deleteCatMut = useMutation({
     mutationFn: (id: string) => categories.remove(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["categories"] }); qc.invalidateQueries({ queryKey: ["tasks"] }); setActiveTab("all"); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["categories"] });
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+      setActiveTab("all");
+      setDeleteConfirmTab(null);
+    },
+    onError: (e: any) => { alert(e.message ?? "Silme başarısız"); setDeleteConfirmTab(null); },
   });
 
   // Group tasks by category
@@ -552,12 +566,23 @@ export default function Tasks() {
         </button>
 
         {activeTab !== "all" && activeTab !== "uncategorized" && (
-          <button onClick={() => { if (confirm("Kategoriyi sil?")) deleteCatMut.mutate(activeTab); }}
-            style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 11px", borderRadius: 10, background: "transparent", border: "1px solid transparent", color: "var(--text-3)", cursor: "pointer", fontSize: 12.5, flexShrink: 0 }}
-            onMouseEnter={e => { (e.currentTarget as any).style.color = "var(--danger)"; }}
-            onMouseLeave={e => { (e.currentTarget as any).style.color = "var(--text-3)"; }}>
-            <Icon name="trash" size={13} />Sil
-          </button>
+          deleteConfirmTab === activeTab ? (
+            <div className="row gap-6" style={{ flexShrink: 0 }}>
+              <span className="mono dim fs-11">Emin misin?</span>
+              <button className="btn sm" style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.4)", color: "var(--danger)", padding: "4px 10px" }}
+                onClick={() => deleteCatMut.mutate(activeTab)} disabled={deleteCatMut.isPending}>
+                {deleteCatMut.isPending ? "Siliniyor..." : "Evet, sil"}
+              </button>
+              <button className="btn ghost sm" onClick={() => setDeleteConfirmTab(null)}>İptal</button>
+            </div>
+          ) : (
+            <button onClick={() => setDeleteConfirmTab(activeTab)}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 11px", borderRadius: 10, background: "transparent", border: "1px solid transparent", color: "var(--text-3)", cursor: "pointer", fontSize: 12.5, flexShrink: 0 }}
+              onMouseEnter={e => { (e.currentTarget as any).style.color = "var(--danger)"; }}
+              onMouseLeave={e => { (e.currentTarget as any).style.color = "var(--text-3)"; }}>
+              <Icon name="trash" size={13} />Sil
+            </button>
+          )
         )}
       </div>
 
