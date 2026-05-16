@@ -1,8 +1,9 @@
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { tasks, categories, courses } from "@/lib/api";
 import { Icon } from "@/components/ui/Icon";
 import { format } from "date-fns";
+import { MilestoneTimeline } from "@/components/MilestoneTimeline";
 
 // ── Constants ─────────────────────────────────────────────────
 const PRIORITY_COLORS: Record<string, string> = {
@@ -368,11 +369,15 @@ function CategorySection({ cat, taskList, courseList, showDone }: {
   const qc = useQueryClient();
   const [adding, setAdding] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [timelineView, setTimelineView] = useState(false);
 
   const active = taskList.filter(t => !["DONE", "CANCELLED"].includes(t.status));
   const done = taskList.filter(t => ["DONE", "CANCELLED"].includes(t.status));
   const shown = showDone ? [...active, ...done] : active;
   const color = cat?.color ?? "var(--text-3)";
+
+  // Does this category have milestones?
+  const hasMilestones = taskList.some(t => t.isMilestone && !t.parentId);
 
   const createMut = useMutation({
     mutationFn: (d: any) => tasks.create(d),
@@ -394,49 +399,83 @@ function CategorySection({ cat, taskList, courseList, showDone }: {
   return (
     <div>
       {/* Category header */}
-      <div className="row gap-10" style={{ marginBottom: collapsed ? 0 : 10, cursor: "pointer", userSelect: "none" }} onClick={() => setCollapsed(c => !c)}>
-        <div style={{ width: 28, height: 28, borderRadius: 8, background: `${color}18`, display: "grid", placeItems: "center", color, border: `1px solid ${color}33`, flexShrink: 0 }}>
-          <Icon name={cat?.icon as any ?? "tasks"} size={14} />
+      <div className="row gap-10" style={{ marginBottom: collapsed ? 0 : 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, cursor: "pointer", userSelect: "none" as any }} onClick={() => setCollapsed(c => !c)}>
+          <div style={{ width: 28, height: 28, borderRadius: 8, background: `${color}18`, display: "grid", placeItems: "center", color, border: `1px solid ${color}33`, flexShrink: 0 }}>
+            <Icon name={cat?.icon as any ?? "tasks"} size={14} />
+          </div>
+          <span className="display" style={{ fontSize: 15, fontWeight: 600, letterSpacing: "-0.01em" }}>{cat?.name ?? "Kategorisiz"}</span>
+          <span className="mono dim fs-11" style={{ letterSpacing: "0.1em" }}>
+            {active.length} aktif{done.length > 0 ? ` · ${done.length} tamam` : ""}
+            {hasMilestones ? ` · ${taskList.filter(t => t.isMilestone && !t.parentId).length} milestone` : ""}
+          </span>
+          <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${color}30, transparent)` }} />
+          <Icon name={collapsed ? "arrow-down" : "arrow-up"} size={14} stroke={1.5} />
         </div>
-        <span className="display" style={{ fontSize: 15, fontWeight: 600, letterSpacing: "-0.01em" }}>{cat?.name ?? "Kategorisiz"}</span>
-        <span className="mono dim fs-11" style={{ letterSpacing: "0.1em" }}>
-          {active.length} aktif{done.length > 0 ? ` · ${done.length} tamam` : ""}
-          {milestones.length > 0 ? ` · ${milestones.length} milestone` : ""}
-        </span>
-        <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${color}30, transparent)` }} />
-        <Icon name={collapsed ? "arrow-down" : "arrow-up"} size={14} stroke={1.5} />
+        {/* Timeline toggle — only if milestones exist */}
+        {hasMilestones && !collapsed && (
+          <button
+            onClick={() => setTimelineView(v => !v)}
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "5px 10px", borderRadius: 8, cursor: "pointer",
+              background: timelineView ? `${color}15` : "var(--surface)",
+              border: `1px solid ${timelineView ? `${color}55` : "var(--border)"}`,
+              color: timelineView ? color : "var(--text-2)",
+              fontSize: 11.5, fontFamily: "var(--font-mono)", letterSpacing: "0.06em",
+              transition: "all 160ms", flexShrink: 0,
+            }}>
+            <Icon name="target" size={12} />
+            {timelineView ? "Liste görünümü" : "Timeline görünümü"}
+          </button>
+        )}
       </div>
 
       {!collapsed && (
         <div style={{ marginLeft: 38 }}>
-          {/* Milestones first */}
-          {milestones.length > 0 && (
-            <div style={{ marginBottom: 8 }}>
-              <div className="mono dim fs-11" style={{ letterSpacing: "0.14em", marginBottom: 6 }}>MILESTONES</div>
-              {milestones.map(t => (
+          {/* ── Timeline view ── */}
+          {timelineView && cat && (
+            <MilestoneTimeline
+              allTasks={taskList}
+              categoryColor={cat.color}
+              categoryId={cat.id}
+              categoryName={cat.name}
+            />
+          )}
+
+          {/* ── List view ── */}
+          {!timelineView && (
+            <>
+              {/* Milestones first (in list view) */}
+              {milestones.length > 0 && (
+                <div style={{ marginBottom: 8 }}>
+                  <div className="mono dim fs-11" style={{ letterSpacing: "0.14em", marginBottom: 6 }}>MILESTONES</div>
+                  {milestones.map(t => (
+                    <TaskRow key={t.id} task={t} depth={0} catName={cat?.name ?? null} courseList={courseList} qc={qc}
+                      onToggle={() => updateMut.mutate({ id: t.id, data: { status: STATUS_NEXT[t.status] ?? "TODO" } })}
+                      onDelete={() => deleteMut.mutate(t.id)} />
+                  ))}
+                </div>
+              )}
+
+              {/* Regular tasks */}
+              {adding && (
+                <AddTaskForm categoryId={cat?.id ?? null} categoryName={cat?.name ?? null} courseList={courseList}
+                  onSave={d => createMut.mutate(d)} onCancel={() => setAdding(false)} />
+              )}
+              {regular.map(t => (
                 <TaskRow key={t.id} task={t} depth={0} catName={cat?.name ?? null} courseList={courseList} qc={qc}
                   onToggle={() => updateMut.mutate({ id: t.id, data: { status: STATUS_NEXT[t.status] ?? "TODO" } })}
                   onDelete={() => deleteMut.mutate(t.id)} />
               ))}
-            </div>
+              {shown.length === 0 && !adding && (
+                <p className="muted fs-12" style={{ padding: "6px 0", fontStyle: "italic" }}>Henüz görev yok.</p>
+              )}
+              <button className="btn ghost sm" style={{ marginTop: 6 }} onClick={() => setAdding(true)}>
+                <Icon name="plus" size={13} />Görev ekle
+              </button>
+            </>
           )}
-
-          {/* Regular tasks */}
-          {adding && (
-            <AddTaskForm categoryId={cat?.id ?? null} categoryName={cat?.name ?? null} courseList={courseList}
-              onSave={d => createMut.mutate(d)} onCancel={() => setAdding(false)} />
-          )}
-          {regular.map(t => (
-            <TaskRow key={t.id} task={t} depth={0} catName={cat?.name ?? null} courseList={courseList} qc={qc}
-              onToggle={() => updateMut.mutate({ id: t.id, data: { status: STATUS_NEXT[t.status] ?? "TODO" } })}
-              onDelete={() => deleteMut.mutate(t.id)} />
-          ))}
-          {shown.length === 0 && !adding && (
-            <p className="muted fs-12" style={{ padding: "6px 0", fontStyle: "italic" }}>Henüz görev yok.</p>
-          )}
-          <button className="btn ghost sm" style={{ marginTop: 6 }} onClick={() => setAdding(true)}>
-            <Icon name="plus" size={13} />Görev ekle
-          </button>
         </div>
       )}
     </div>

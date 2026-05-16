@@ -413,22 +413,28 @@ function TelegramCard({ ints }: { ints: any[] }) {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["integrations"] }); setDeepLink(null); setPolling(false); },
   });
 
+  // Poll integrations list every 3s while waiting for Telegram connection
   useQuery({
-    queryKey: ["telegram-status"],
-    queryFn: () => auth.me(),
+    queryKey: ["integrations"],
+    queryFn: integrations.list,
     refetchInterval: polling ? 3000 : false,
     enabled: polling,
-    select: (d: any) => d,
   });
 
   useEffect(() => {
-    if (polling && isConnected) { setPolling(false); setDeepLink(null); }
-  }, [isConnected, polling]);
+    if (polling && isConnected) {
+      setPolling(false);
+      setDeepLink(null);
+      qc.invalidateQueries({ queryKey: ["integrations"] });
+    }
+  }, [isConnected, polling, qc]);
 
   const botInfo = useQuery({
     queryKey: ["telegram-bot-info"],
     queryFn: () => fetch("/api/v1/integrations/telegram/bot-info", { headers: { Authorization: `Bearer ${localStorage.getItem("token") ?? sessionStorage.getItem("token") ?? ""}` } }).then(r => r.json()),
-    staleTime: 60_000,
+    staleTime: 0,          // always re-fetch — was cached as "unavailable" before rebuild
+    refetchOnMount: true,
+    retry: 2,
   });
   const available = (botInfo.data as any)?.available === true;
 
