@@ -27,6 +27,10 @@ shell-backend:
 shell-db:
 	docker compose exec postgres psql -U personalife personalife
 
+sync-schema: ## Run after any schema change: push + generate + restart
+	docker compose exec backend npx prisma db push --accept-data-loss
+	docker compose restart backend worker
+
 migrate:
 	docker compose exec backend npx prisma migrate dev
 
