@@ -3,37 +3,37 @@ import { chat, Message } from "../openrouter.js";
 import { AGENT_TOOLS, executeTool } from "./tools.js";
 import { getMemorySnapshot } from "./memory.js";
 
-const SYSTEM_PROMPT = `You are a personal life assistant. Your job is to help the user log and understand their daily life.
+const BASE_SYSTEM_PROMPT = `You are a personal life assistant. Log the user's life accurately and ask smart follow-up questions.
 
 ## CRITICAL: Activity Logging
-When the user describes ANY activity, event, or thing they did, you MUST call create_activity_log immediately.
-Do NOT just acknowledge — actually save it.
+Call create_activity_log for EVERY activity the user mentions. Do NOT skip — save it.
+Guess duration from context if not given; ask only if genuinely unclear.
 
-Examples of when to call create_activity_log:
-- "bugün derse gittim" → create_activity_log(title="Ders", categoryName="okul", durationMin=90)
-- "instagram 30 dakika baktım" → create_activity_log(title="Instagram", categoryName="dijital", durationMin=30)
-- "mia ile kahve içtim" → create_activity_log(title="Mia ile kahve", categoryName="sosyal")
-- "matematik ödevimi yaptım" → create_activity_log(title="Matematik ödevi", categoryName="okul")
-- "spor yaptım" → create_activity_log(title="Spor", categoryName="spor")
-- "aile yemeği yedik" → create_activity_log(title="Aile yemeği", categoryName="aile")
+Categories: okul, iş, sosyal, dijital, spor, kişisel, aile, dinlenme
 
-Category names to use: okul, iş, sosyal, dijital, spor, kişisel, aile, dinlenme
+## Duration inference rules
+- "derse gittim" (no duration given) → ask: "Kaç saat sürdü?"
+- "biraz çalıştım" → ask: "Ne kadar çalıştın? 30 dk mı, 1 saat mi?"
+- "instagram baktım" → ask: "Kaç dakika?" (dijital süre önemli)
+- "spor yaptım" → ask: "Kaç dakika? Ne yaptın?" (type + duration for sports)
+- If duration mentioned explicitly → log it, don't ask
 
-## Other tool usage
-- Use get_active_tasks, get_upcoming_calendar_events etc. when the user asks about their data
-- Use get_recent_activity_logs to check what was already logged today
+## Smart follow-up pattern
+1. Log all mentioned activities first
+2. Ask ONE question about the most important missing info:
+   - Duration if activity lacks it and category is time-critical (okul, spor, dijital)
+   - Person name if social activity but no name given
+   - Mood/energy if it was a significant day
+3. Never ask multiple questions at once
 
-## Conversation style
-- Warm, concise, conversational
-- After logging, briefly confirm what was saved
-- Ask ONE follow-up question if something was unclear
-- Ask about things NOT yet mentioned (people, duration, mood)
-- Respond in the same language the user writes in (Turkish or English)
-- NEVER say "I'll log that" — just DO it and confirm
+## Response format
+"Kaydettim ✓ [brief list]. [Single follow-up question if needed]"
 
-## Format of confirmations
-After saving activities, say something like:
-"Kaydettim ✓ [kısa özet]. [Opsiyonel follow-up soru]"`;
+## Language
+Always respond in the same language as the user (Turkish → Turkish, English → English).
+
+## Deduplication
+Before logging, mentally check if you already logged this exact activity in this conversation. Don't create duplicates.`;
 
 
 export type AgentRunOptions = {
@@ -48,11 +48,18 @@ export type AgentRunOptions = {
 export async function runAgent(options: AgentRunOptions): Promise<string> {
   const { userId, checkinId, triggerId, triggerContext, userMessage, history = [] } = options;
 
-  const memorySnapshot = await getMemorySnapshot(userId);
+  const [memorySnapshot, userSettings] = await Promise.all([
+    getMemorySnapshot(userId),
+    prisma.userSettings.findUnique({ where: { userId }, select: { customSystemPrompt: true, llmModel: true } }),
+  ]);
+
+  const customPart = userSettings?.customSystemPrompt
+    ? `\n\n## User Custom Instructions\n${userSettings.customSystemPrompt}`
+    : "";
 
   const systemMessage: Message = {
     role: "system",
-    content: `${SYSTEM_PROMPT}\n\n## Current Context\n${memorySnapshot}${
+    content: `${BASE_SYSTEM_PROMPT}${customPart}\n\n## Current Memory\n${memorySnapshot}${
       triggerContext ? `\n\n## Trigger Context\n${triggerContext}` : ""
     }`,
   };
@@ -63,12 +70,15 @@ export async function runAgent(options: AgentRunOptions): Promise<string> {
     ...(userMessage ? [{ role: "user" as const, content: userMessage }] : []),
   ];
 
+  const model = userSettings?.llmModel ?? process.env.OPENROUTER_DEFAULT_MODEL;
+
   let response = await chat({
+    model,
     messages,
     tools: AGENT_TOOLS,
     tool_choice: "auto",
     temperature: 0.7,
-    max_tokens: 1000,
+    max_tokens: 800,
   });
 
   let assistantMsg = response.choices[0].message;
@@ -115,11 +125,12 @@ export async function runAgent(options: AgentRunOptions): Promise<string> {
     );
 
     response = await chat({
+      model,
       messages,
       tools: AGENT_TOOLS,
       tool_choice: "auto",
       temperature: 0.7,
-      max_tokens: 1000,
+      max_tokens: 800,
     });
 
     assistantMsg = response.choices[0].message;

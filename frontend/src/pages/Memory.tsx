@@ -45,7 +45,12 @@ function parseMemory(content: string): { label: string; items: string[]; color: 
 
 export default function Memory() {
   const qc = useQueryClient();
-  const { data: snap, isLoading } = useQuery({ queryKey: ["memory"], queryFn: agent.memory, retry: false });
+  const { data: snap, isLoading, dataUpdatedAt } = useQuery({
+    queryKey: ["memory"],
+    queryFn: agent.memory,
+    retry: false,
+    staleTime: 0, // always re-fetch
+  });
   const refreshMut = useMutation({
     mutationFn: agent.refreshMemory,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["memory"] }),

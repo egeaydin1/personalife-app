@@ -140,6 +140,7 @@ export async function authRoutes(app: FastifyInstance) {
       morningFollowupTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
       llmModel: z.string().optional(),
       notificationsEnabled: z.boolean().optional(),
+      customSystemPrompt: z.string().max(2000).optional().nullable(),
     }).parse(req.body);
 
     const settings = await prisma.userSettings.upsert({

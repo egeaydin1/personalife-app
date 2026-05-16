@@ -73,42 +73,60 @@ function StreamGraph({ byCategory }: { byCategory: { name: string; minutes: numb
   );
 }
 
-// ── Activity heatmap — real daily data ───────────────────────
+// ── Activity heatmap — GitHub-style date-aligned grid ────────
 function Heatmap({ dailyBreakdown }: { dailyBreakdown?: { date: string; minutes: number }[] }) {
   if (!dailyBreakdown || dailyBreakdown.length === 0) {
-    return <EmptyState message="Yeterli günlük veri yok." />;
+    return <EmptyState message="Yeterli günlük veri yok — check-in yap." />;
   }
 
+  const minuteMap = new Map(dailyBreakdown.map(d => [d.date, d.minutes]));
   const maxMin = Math.max(...dailyBreakdown.map(d => d.minutes), 1);
-  const color = (v: number) => {
-    if (v < 0.1) return "rgba(255,255,255,0.04)";
-    if (v < 0.3) return "rgba(91,140,255,0.25)";
-    if (v < 0.55) return "rgba(91,140,255,0.5)";
+
+  const cellColor = (min: number) => {
+    const v = min / maxMin;
+    if (v === 0) return "rgba(255,255,255,0.04)";
+    if (v < 0.25) return "rgba(91,140,255,0.2)";
+    if (v < 0.5) return "rgba(91,140,255,0.45)";
     if (v < 0.75) return "rgba(139,92,246,0.65)";
-    return "rgba(244,114,182,0.8)";
+    return "rgba(244,114,182,0.85)";
   };
 
-  // Group by week
-  const weeks: { date: string; minutes: number }[][] = [];
-  let week: { date: string; minutes: number }[] = [];
-  dailyBreakdown.forEach((d, i) => {
-    week.push(d);
-    if (week.length === 7 || i === dailyBreakdown.length - 1) {
-      weeks.push([...week]);
-      week = [];
-    }
-  });
+  // Build a proper Mon-aligned date grid
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  // Go back to start of current week (Mon) then N weeks
+  const NUM_WEEKS = 10;
+  const dayOfWeek = today.getDay(); // 0=Sun
+  const daysFromMon = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  const gridStart = new Date(today);
+  gridStart.setDate(today.getDate() - daysFromMon - (NUM_WEEKS - 1) * 7);
+
+  // 7 rows (Mon-Sun) × NUM_WEEKS cols
+  const DAY_INITIALS = ["P", "S", "Ç", "P", "C", "C", "P"]; // Mon-Sun in Turkish
 
   return (
     <div>
-      <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(weeks.length, 14)}, 1fr)`, gap: 4 }}>
-        {weeks.slice(-14).map((w, wi) => (
-          <div key={wi} className="col gap-1">
-            {w.map((d, di) => {
-              const v = d.minutes / maxMin;
+      <div style={{ display: "grid", gridTemplateColumns: `20px repeat(${NUM_WEEKS}, 1fr)`, gap: 3 }}>
+        {/* Row labels */}
+        {DAY_INITIALS.map((d, di) => (
+          <div key={di} style={{ display: "contents" }}>
+            <div className="mono dim" style={{ fontSize: 9, display: "flex", alignItems: "center", justifyContent: "center" }}>{d}</div>
+            {Array.from({ length: NUM_WEEKS }).map((_, wi) => {
+              const cellDate = new Date(gridStart);
+              cellDate.setDate(gridStart.getDate() + wi * 7 + di);
+              const dateStr = cellDate.toISOString().slice(0, 10);
+              const min = minuteMap.get(dateStr) ?? 0;
+              const isFuture = cellDate > today;
               return (
-                <div key={di} title={`${d.date}: ${Math.round(d.minutes / 60 * 10) / 10}s`}
-                  style={{ aspectRatio: "1", borderRadius: 4, background: color(v), transition: "transform 160ms", cursor: "default" }} />
+                <div key={wi} title={isFuture ? "" : `${dateStr}: ${Math.round(min / 60 * 10) / 10}s`}
+                  style={{
+                    aspectRatio: "1", borderRadius: 4,
+                    background: isFuture ? "rgba(255,255,255,0.02)" : cellColor(min),
+                    transition: "transform 160ms", cursor: isFuture ? "default" : "pointer",
+                  }}
+                  onMouseEnter={e => { if (!isFuture) (e.currentTarget as any).style.transform = "scale(1.3)"; }}
+                  onMouseLeave={e => { (e.currentTarget as any).style.transform = "scale(1)"; }}
+                />
               );
             })}
           </div>
@@ -116,8 +134,9 @@ function Heatmap({ dailyBreakdown }: { dailyBreakdown?: { date: string; minutes:
       </div>
       <div className="row gap-8 mt-12" style={{ alignItems: "center" }}>
         <span className="mono dim fs-11">Az</span>
-        {[0.05, 0.3, 0.55, 0.75, 0.9].map((v, i) => <span key={i} style={{ width: 14, height: 14, borderRadius: 4, background: color(v) }} />)}
-        <span className="mono dim fs-11">Çok</span>
+        {[0, 0.25, 0.5, 0.75, 1].map((v, i) => <span key={i} style={{ width: 14, height: 14, borderRadius: 4, background: cellColor(v * maxMin) }} />)}
+        <span className="mono dim fs-11">Yoğun</span>
+        <span className="mono dim fs-11" style={{ marginLeft: "auto" }}>Son {NUM_WEEKS} hafta</span>
       </div>
     </div>
   );

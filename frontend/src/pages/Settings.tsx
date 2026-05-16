@@ -254,7 +254,7 @@ function ProfileSection({ me }: { me: any }) {
 // ── Agent settings section ────────────────────────────────────
 function AgentSection({ me }: { me: any }) {
   const qc = useQueryClient();
-  const [form, setForm] = useState({ checkinTime: "21:00", morningFollowupTime: "08:00", llmModel: "anthropic/claude-3.5-sonnet", agentContactPref: "balanced", agentTone: "casual" });
+  const [form, setForm] = useState({ checkinTime: "21:00", morningFollowupTime: "08:00", llmModel: "openai/gpt-4o-mini", agentContactPref: "balanced", agentTone: "casual", customSystemPrompt: "" as string | null });
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
 
@@ -263,9 +263,10 @@ function AgentSection({ me }: { me: any }) {
     setForm({
       checkinTime: me.settings?.checkinTime ?? "21:00",
       morningFollowupTime: me.settings?.morningFollowupTime ?? "08:00",
-      llmModel: me.settings?.llmModel ?? "anthropic/claude-3.5-sonnet",
+      llmModel: me.settings?.llmModel ?? "openai/gpt-4o-mini",
       agentContactPref: me.agentContactPref ?? "balanced",
       agentTone: me.agentTone ?? "casual",
+      customSystemPrompt: me.settings?.customSystemPrompt ?? "",
     });
   }, [me]);
 
@@ -280,8 +281,8 @@ function AgentSection({ me }: { me: any }) {
   });
 
   function save() {
-    const { agentContactPref, agentTone, ...settingsData } = form;
-    settingsMut.mutate(settingsData);
+    const { agentContactPref, agentTone, customSystemPrompt, ...settingsData } = form;
+    settingsMut.mutate({ ...settingsData, customSystemPrompt: customSystemPrompt || null });
     profileMut.mutate({ agentContactPref, agentTone });
   }
 
@@ -317,6 +318,23 @@ function AgentSection({ me }: { me: any }) {
         <Field label="LLM MODELİ">
           <EditSelect value={form.llmModel} onChange={v => setForm(f => ({ ...f, llmModel: v }))} options={LLM_MODELS} />
         </Field>
+      </div>
+
+      <div className="col gap-6">
+        <label className="mono dim fs-11" style={{ letterSpacing: "0.14em" }}>CUSTOM SYSTEM PROMPT (OPSİYONEL)</label>
+        <textarea
+          value={form.customSystemPrompt ?? ""}
+          onChange={e => setForm(f => ({ ...f, customSystemPrompt: e.target.value }))}
+          rows={4}
+          placeholder="Agent her konuşmada bu talimatları okuyacak. Örn: 'Bana her zaman Türkçe yanıt ver. Ben bir yazılım mühendisiyim. 42 İstanbul öğrencisiyim.' (maks 2000 karakter)"
+          style={{ width: "100%", padding: "10px 12px", borderRadius: 10, background: "var(--surface)", border: "1px solid var(--border-strong)", color: "var(--text-0)", fontFamily: "var(--font-body)", fontSize: 13, outline: "none", resize: "vertical", lineHeight: 1.5 }}
+        />
+        <div className="row gap-8">
+          <p className="muted fs-11" style={{ fontStyle: "italic", flex: 1 }}>
+            Bu alan memory.md'ye eklenir. Agent seni daha iyi tanımak için bunu okur.
+          </p>
+          <span className="mono dim fs-11">{(form.customSystemPrompt ?? "").length}/2000</span>
+        </div>
       </div>
 
       <div className="between">

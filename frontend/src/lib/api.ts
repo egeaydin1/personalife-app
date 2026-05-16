@@ -64,9 +64,21 @@ export const categories = {
   remove: (id: string) => request<void>(`/categories/${id}`, { method: "DELETE" }),
 };
 
+// ── Attendance ────────────────────────────────────────────────
+export const attendance = {
+  list: (params?: { from?: string; to?: string; courseId?: string }) => {
+    const qs = params ? "?" + new URLSearchParams(params as any).toString() : "";
+    return request<any[]>(`/courses/attendance${qs}`);
+  },
+  pending: () => request<{ pending: any[] }>("/courses/attendance/pending"),
+  summary: () => request<any[]>("/courses/attendance/summary"),
+  mark: (data: { courseId: string; date: string; attended: boolean; notes?: string }) =>
+    request<any>("/courses/attendance", { method: "POST", body: JSON.stringify(data) }),
+};
+
 // ── Tasks ─────────────────────────────────────────────────────
 export const tasks = {
-  list: (params?: { status?: string; courseId?: string; categoryId?: string }) => {
+  list: (params?: { status?: string; courseId?: string; categoryId?: string; parentId?: string; topLevel?: boolean }) => {
     const qs = params ? "?" + new URLSearchParams(params as any).toString() : "";
     return request<any[]>(`/tasks${qs}`);
   },

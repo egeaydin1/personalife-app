@@ -52,6 +52,7 @@ model User {
   memorySnapshot    MemorySnapshot?
   goals             Goal[]
   integrations      Integration[]
+  courseAttendance  CourseAttendance[]
 
   @@map("users")
 }
@@ -90,7 +91,8 @@ model UserSettings {
   notificationsEnabled Boolean  @default(true)
   checkinTime          String   @default("21:00")
   morningFollowupTime  String   @default("08:00")
-  llmModel             String   @default("anthropic/claude-3.5-sonnet")
+  llmModel             String   @default("openai/gpt-4o-mini")
+  customSystemPrompt   String?  // appended to base agent system prompt
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
@@ -118,6 +120,22 @@ model Task {
   status       TaskStatus @default(TODO)
   estimatedMin Int?
   notes        String?
+
+  // Subtask support
+  parentId     String?
+  parent       Task?      @relation("TaskSubtasks", fields: [parentId], references: [id], onDelete: Cascade)
+  subtasks     Task[]     @relation("TaskSubtasks")
+
+  // Milestone
+  isMilestone  Boolean    @default(false)
+  milestoneDate DateTime?
+
+  // Sports-specific fields
+  sportUnit    String?    // "km" | "kg" | "min" | "reps" | "sets" | "cal"
+  sportTarget  Float?     // numeric target value
+  dailyRepeat  Boolean    @default(false)
+  repeatDays   Int[]      // days of week (0=Sun..6=Sat)
+
   progressLogs TaskProgressLog[]
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
@@ -125,6 +143,7 @@ model Task {
   @@index([userId, status])
   @@index([userId, deadline])
   @@index([userId, categoryId])
+  @@index([userId, parentId])
   @@map("tasks")
 }
 
@@ -162,6 +181,22 @@ model Goal {
 // Merged school_courses + school_schedule_entries using RRULE-style recurrence
 // ─────────────────────────────────────────────────────────────
 
+model CourseAttendance {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId  String
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  date      DateTime @db.Date
+  attended  Boolean  // true = gittim, false = gitmedim
+  notes     String?
+  createdAt DateTime @default(now())
+
+  @@unique([courseId, date])
+  @@index([userId, date])
+  @@map("course_attendance")
+}
+
 model Course {
   id            String   @id @default(cuid())
   userId        String
@@ -177,6 +212,7 @@ model Course {
   semesterEnd   DateTime @db.Date
   tasks         Task[]
   activityLogs  ActivityLog[]
+  attendance    CourseAttendance[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
