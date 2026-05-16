@@ -1,33 +1,19 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { tasks, categories, courses } from "@/lib/api";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { categories, courses } from "@/lib/api";
 import { Icon } from "@/components/ui/Icon";
 import { format } from "date-fns";
 import { MilestoneTimeline } from "@/components/MilestoneTimeline";
+import {
+  PRIORITY_COLORS, PRIORITY_LABELS, STATUS_NEXT, SPORT_UNITS,
+  TEMPLATE_COLORS, CATEGORY_TEMPLATES, getCatFormConfig, isTaskDone,
+  useTaskOps,
+} from "@/lib/taskUtils";
+import { tasks } from "@/lib/api";
 
-// ── Constants ─────────────────────────────────────────────────
-const PRIORITY_COLORS: Record<string, string> = {
-  LOW: "#5b6390", MEDIUM: "#5B8CFF", HIGH: "#F59E0B", URGENT: "#EF4444",
-};
-const PRIORITY_LABELS: Record<string, string> = {
-  LOW: "Düşük", MEDIUM: "Orta", HIGH: "Yüksek", URGENT: "Acil",
-};
-const STATUS_NEXT: Record<string, string> = {
-  TODO: "IN_PROGRESS", IN_PROGRESS: "DONE", DONE: "TODO",
-};
-const SPORT_UNITS = ["dk", "km", "kg", "tekrar", "set", "kalori"];
-const TEMPLATE_COLORS = ["#5B8CFF", "#F59E0B", "#F472B6", "#A3E635", "#8B5CF6", "#22D3EE", "#EF4444", "#22C55E"];
+// Local alias so existing code doesn't break
 const COLOR_PALETTE = TEMPLATE_COLORS;
-const TEMPLATES = [
-  { name: "Okul", color: "#5B8CFF", icon: "school" },
-  { name: "İş", color: "#F59E0B", icon: "zap" },
-  { name: "Sosyal", color: "#F472B6", icon: "users" },
-  { name: "Spor", color: "#A3E635", icon: "heart" },
-  { name: "Kişisel", color: "#8B5CF6", icon: "sparkles" },
-  { name: "Sağlık", color: "#22D3EE", icon: "target" },
-  { name: "Aile", color: "#F59E0B", icon: "users" },
-  { name: "Alışveriş", color: "#EF4444", icon: "filter" },
-];
+const TEMPLATES = CATEGORY_TEMPLATES;
 
 // ── Shared helpers ────────────────────────────────────────────
 function inp(extra?: React.CSSProperties): React.CSSProperties {
@@ -50,24 +36,8 @@ function PriorityBadge({ p }: { p: string }) {
 }
 
 // ── Category-specific form config ─────────────────────────────
-function getCatConfig(catName: string | null) {
-  const n = (catName ?? "").toLowerCase();
-  const isSport = n === "spor" || n === "sağlık";
-  const isSchool = n === "okul";
-  const isSocial = n === "sosyal" || n === "aile";
-
-  return {
-    titlePlaceholder: isSport ? "Antrenman (ör: Sabah koşusu)" : isSchool ? "Ödev / sınav hazırlığı" : isSocial ? "Buluşma / etkinlik" : "Görev başlığı…",
-    showPriority: !isSport && !isSocial,
-    showDeadline: !isSport,
-    showCourse: isSchool,
-    showDuration: true,
-    durationLabel: isSport ? "Hedef süre (dk)" : "Tahmini süre (dk)",
-    showSport: isSport,
-    showNotes: true,
-    notesPlaceholder: isSport ? "Antrenman türü, hedef mesafe, set/tekrar…" : isSchool ? "Notlar" : isSocial ? "Kişi, yer, notlar" : "Notlar",
-  };
-}
+// getCatConfig re-exported from taskUtils as getCatFormConfig — alias for backwards compat
+const getCatConfig = getCatFormConfig;
 
 // ── Add Category Modal ────────────────────────────────────────
 function AddCategoryModal({ existingNames, onClose, onCreated }: {
@@ -260,19 +230,15 @@ function AddTaskForm({ categoryId, categoryName, parentId, courseList, onSave, o
 }
 
 // ── Task Row ──────────────────────────────────────────────────
-function TaskRow({ task, depth, catName, courseList, onToggle, onDelete, qc }: {
+function TaskRow({ task, depth, catName, courseList, onToggle, onDelete }: {
   task: any; depth: number; catName: string | null;
-  courseList: any[]; onToggle: () => void; onDelete: () => void; qc: any;
+  courseList: any[]; onToggle: () => void; onDelete: () => void;
 }) {
   const [addingSub, setAddingSub] = useState(false);
-  const isDone = task.status === "DONE" || task.status === "CANCELLED";
+  const ops = useTaskOps();
+  const isDone = isTaskDone(task.status);
   const pColor = PRIORITY_COLORS[task.priority] ?? "#5B8CFF";
   const indent = depth * 24;
-
-  const createSubMut = useMutation({
-    mutationFn: (d: any) => tasks.create(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["tasks"] }); setAddingSub(false); },
-  });
 
   return (
     <div style={{ marginLeft: indent }}>
@@ -343,7 +309,7 @@ function TaskRow({ task, depth, catName, courseList, onToggle, onDelete, qc }: {
             categoryName={catName}
             parentId={task.id}
             courseList={courseList}
-            onSave={d => createSubMut.mutate(d)}
+            onSave={d => { ops.createTask(d); setAddingSub(false); }}
             onCancel={() => setAddingSub(false)}
           />
         </div>
@@ -352,9 +318,9 @@ function TaskRow({ task, depth, catName, courseList, onToggle, onDelete, qc }: {
       {/* Render subtasks recursively */}
       {task.subtasks && task.subtasks.map((sub: any) => (
         <TaskRow key={sub.id} task={sub} depth={depth + 1} catName={catName}
-          courseList={courseList} qc={qc}
-          onToggle={() => qc.invalidateQueries({ queryKey: ["tasks"] })}
-          onDelete={() => tasks.remove(sub.id).then(() => qc.invalidateQueries({ queryKey: ["tasks"] }))}
+          courseList={courseList}
+          onToggle={() => ops.toggleStatus(sub)}
+          onDelete={() => ops.deleteTask(sub.id)}
         />
       ))}
     </div>
@@ -379,18 +345,8 @@ function CategorySection({ cat, taskList, courseList, showDone }: {
   const hasMilestones = taskList.some(t => t.isMilestone && !t.parentId);
   const timelineView = hasMilestones && cat !== null;
 
-  const createMut = useMutation({
-    mutationFn: (d: any) => tasks.create(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["tasks"] }); setAdding(false); },
-  });
-  const updateMut = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => tasks.update(id, data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
-  });
-  const deleteMut = useMutation({
-    mutationFn: (id: string) => tasks.remove(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
-  });
+  // All task mutations from centralised hook
+  const ops = useTaskOps();
 
   // Separate milestones from regular tasks
   const milestones = shown.filter(t => t.isMilestone && !t.parentId);
@@ -443,20 +399,20 @@ function CategorySection({ cat, taskList, courseList, showDone }: {
                 <div style={{ marginBottom: 8 }}>
                   <div className="mono dim fs-11" style={{ letterSpacing: "0.14em", marginBottom: 6 }}>MILESTONES</div>
                   {milestones.map(t => (
-                    <TaskRow key={t.id} task={t} depth={0} catName={cat?.name ?? null} courseList={courseList} qc={qc}
-                      onToggle={() => updateMut.mutate({ id: t.id, data: { status: STATUS_NEXT[t.status] ?? "TODO" } })}
-                      onDelete={() => deleteMut.mutate(t.id)} />
+                    <TaskRow key={t.id} task={t} depth={0} catName={cat?.name ?? null} courseList={courseList}
+                      onToggle={() => ops.toggleStatus(t)}
+                      onDelete={() => ops.deleteTask(t.id)} />
                   ))}
                 </div>
               )}
               {adding && (
                 <AddTaskForm categoryId={cat?.id ?? null} categoryName={cat?.name ?? null} courseList={courseList}
-                  onSave={d => createMut.mutate(d)} onCancel={() => setAdding(false)} />
+                  onSave={d => { ops.createTask(d); setAdding(false); }} onCancel={() => setAdding(false)} />
               )}
               {regular.map(t => (
-                <TaskRow key={t.id} task={t} depth={0} catName={cat?.name ?? null} courseList={courseList} qc={qc}
-                  onToggle={() => updateMut.mutate({ id: t.id, data: { status: STATUS_NEXT[t.status] ?? "TODO" } })}
-                  onDelete={() => deleteMut.mutate(t.id)} />
+                <TaskRow key={t.id} task={t} depth={0} catName={cat?.name ?? null} courseList={courseList}
+                  onToggle={() => ops.toggleStatus(t)}
+                  onDelete={() => ops.deleteTask(t.id)} />
               ))}
               {shown.length === 0 && !adding && !timelineView && (
                 <p className="muted fs-12" style={{ padding: "6px 0", fontStyle: "italic" }}>Henüz görev yok.</p>

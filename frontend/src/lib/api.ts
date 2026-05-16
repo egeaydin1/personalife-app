@@ -4,10 +4,12 @@ const BASE = "/api/v1";
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = getToken();
+  // Only set Content-Type for requests that have a body (POST/PATCH)
+  const hasBody = init.body !== undefined && init.body !== null;
   const res = await fetch(`${BASE}${path}`, {
     ...init,
     headers: {
-      "Content-Type": "application/json",
+      ...(hasBody ? { "Content-Type": "application/json" } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init.headers ?? {}),
     },
